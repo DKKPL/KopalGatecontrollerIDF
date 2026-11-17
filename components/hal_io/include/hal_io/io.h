@@ -1,6 +1,6 @@
-#ifndef KGC_HAL_IO_H
-#define KGC_HAL_IO_H
+#ifndef HAL_IO_H
+#define HAL_IO_H
 
 
 
-#endif // KGC_HAL_IO_H
+#endif // HAL_IO_H

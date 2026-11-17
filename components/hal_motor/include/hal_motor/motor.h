@@ -1,6 +1,6 @@
-#ifndef KGC_HAL_MOTOR_H
-#define KGC_HAL_MOTOR_H
+#ifndef HAL_MOTOR_H
+#define HAL_MOTOR_H
 
 
 
-#endif // KGC_HAL_MOTOR_H
+#endif // HAL_MOTOR_H

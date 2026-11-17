@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
-    REQUIRES config hal_io hal_motor hal_counter
+    REQUIRES config motor_control
 )
