@@ -1,0 +1,6 @@
+#ifndef WIFI_CAPTIVE_DNS_H
+#define WIFI_CAPTIVE_DNS_H
+
+
+
+#endif // WIFI_CAPTIVE_DNS_H
