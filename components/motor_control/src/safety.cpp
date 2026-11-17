@@ -1,1 +1,80 @@
 #include "motor_control/safety.h"
+
+#include "config/advanced_settings.h"
+#include "esp_log.h"
+#include "hal_io/io.h"
+#include "hal_motor/motor.h"
+#include "motor_control/time_util.h"
+
+static const char* TAG = "safety";
+
+SafetyMonitor::SafetyMonitor(const Io& io, const AdvancedSettings& adv) : io(io), adv(adv)
+{
+}
+
+SafetyActions::SafetyActions(Motor& motor, const Io& io, SafetyMonitor& monitor, const AdvancedSettings& adv)
+    : motor(motor), io(io), monitor(monitor), adv(adv)
+{
+}
+
+// True when closing is allowed: photocell and torque limit not triggered.
+bool SafetyMonitor::closeOk() const
+{
+    return !photocellTriggered && !torqueLimitTriggered;
+}
+
+// True when opening is allowed: torque limit not triggered.
+bool SafetyMonitor::openOk() const
+{
+    return !torqueLimitTriggered;
+}
+
+// True when the safety edge is not triggered (blocks both directions).
+bool SafetyMonitor::edgeOk() const
+{
+    return !safetyEdgeTriggered;
+}
+
+bool SafetyMonitor::allOk() const
+{
+    return closeOk() && openOk() && edgeOk();
+}
+
+bool SafetyMonitor::pollPhotocell()
+{
+    return photocellTriggered = io.isHigh(Input::Photocell);
+}
+
+bool SafetyMonitor::pollTorqueLimit()
+{
+    return torqueLimitTriggered = io.isHigh(Input::TorqueLimit);
+}
+
+bool SafetyMonitor::pollSafetyEdge()
+{
+    // The level that represents the normal/closed (safe) state.
+    constexpr bool kEdgeOkHigh = true;
+
+    const bool level = io.isHigh(Input::SafetyEdge);
+
+    // Not safe (wire open / fault): report triggered immediately.
+    if (level != kEdgeOkHigh) {
+        stopEdgeClearTimer();
+        safetyEdgeTriggered = true;
+        return safetyEdgeTriggered;
+    }
+
+    if (safetyEdgeTriggered) {
+        // Was triggered: the edge must stay OK for SafetyEdgeWaitTime before we clear it.
+        startEdgeClearTimer();
+        if (nowMs() - edgeOkSinceMs >= static_cast<int64_t>(adv.safetyEdgeWaitTime()) * 1000) {
+            safetyEdgeTriggered = false;
+            stopEdgeClearTimer();
+        }
+    } else {
+        // Already safe and stable.
+        stopEdgeClearTimer();
+        safetyEdgeTriggered = false;
+    }
+    return safetyEdgeTriggered;
+}
