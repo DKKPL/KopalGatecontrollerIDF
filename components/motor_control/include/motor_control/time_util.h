@@ -7,22 +7,30 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-// PollingDelayMs
+/**
+ * @brief How often the gate loop runs, in milliseconds (was PollingDelayMs).
+ */
 constexpr int kPollIntervalMs = 10;
 
-// DateTime.UtcNow -> milliseconds since boot
+/**
+ * @brief Milliseconds since the chip started. All timing uses this (was DateTime.UtcNow).
+ */
 inline int64_t nowMs()
 {
     return esp_timer_get_time() / 1000;
 }
 
-// (DateTime.UtcNow - since).TotalSeconds
+/**
+ * @brief Seconds that have passed since sinceMs (a value you got from nowMs()).
+ */
 inline double secondsSince(int64_t sinceMs)
 {
     return static_cast<double>(nowMs() - sinceMs) / 1000.0;
 }
 
-// Sleep(ms) -> Thread.Sleep(ms)
+/**
+ * @brief Pause this task for ms milliseconds; other tasks keep running (was Sleep).
+ */
 inline void sleepMs(int ms)
 {
     if (ms <= 0) {

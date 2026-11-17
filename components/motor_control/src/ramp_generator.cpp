@@ -77,7 +77,7 @@ void SpeedRamp::tryStartDown(double stopValue, double decPeriod)
     if (adjustedDecPeriod < 0.0) {
         adjustedDecPeriod = 0.0;
     }
-
+    //this builds an object in the optional container
     ramp.emplace(RampGenerator::Kind::Down, startValue, stopValue, adjustedDecPeriod, nowMs());
     finished = false;
     lastStepMs = 0;
@@ -101,7 +101,7 @@ void SpeedRamp::tryStartUp(double targetValue, double accPeriod)
     if (adjustedAccPeriod < 0.0) {
         adjustedAccPeriod = 0.0;
     }
-
+    //this builds an object in the optional container
     ramp.emplace(RampGenerator::Kind::Up, startValue, targetValue, adjustedAccPeriod, nowMs());
     finished = false;
     lastStepMs = 0;
