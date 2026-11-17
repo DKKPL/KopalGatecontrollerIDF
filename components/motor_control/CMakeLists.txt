@@ -1,5 +1,7 @@
 idf_component_register(
     SRCS "src/gate_controller.cpp"
+         "src/gate_commands.cpp"
+         "src/gate_outputs.cpp"
          "src/ramp_generator.cpp"
          "src/safety.cpp"
          "src/teach.cpp"
