@@ -1,0 +1,6 @@
+#ifndef TEACH_SETTINGS_H
+#define TEACH_SETTINGS_H
+
+
+
+#endif // TEACH_SETTINGS_H
