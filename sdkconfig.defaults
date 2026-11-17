@@ -1,0 +1,3 @@
+# 1 ms FreeRTOS tick: motor_control waits in steps shorter than 10 ms
+# (e.g. the 5 ms motor dead-time); at the default 100 Hz vTaskDelay cannot go below 10 ms.
+CONFIG_FREERTOS_HZ=1000
