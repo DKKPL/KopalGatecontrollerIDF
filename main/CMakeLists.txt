@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
-    REQUIRES config motor_control modbus wifi web
+    REQUIRES config app_controller modbus wifi web
 )

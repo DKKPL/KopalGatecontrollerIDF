@@ -1,5 +1,5 @@
-#ifndef MOTOR_CONTROL_GATE_TYPES_H
-#define MOTOR_CONTROL_GATE_TYPES_H
+#ifndef APP_CONTROLLER_GATE_TYPES_H
+#define APP_CONTROLLER_GATE_TYPES_H
 
 #include <cstdint>
 
@@ -80,4 +80,4 @@ struct GateStatus {
     bool torqueLimitTriggered = false;
 };
 
-#endif // MOTOR_CONTROL_GATE_TYPES_H
+#endif // APP_CONTROLLER_GATE_TYPES_H
