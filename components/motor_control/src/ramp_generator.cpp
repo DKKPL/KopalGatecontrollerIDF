@@ -67,7 +67,7 @@ void SpeedRamp::tryStartDown(double stopValue, double decPeriod)
         return;
     }
 
-    double startValue = motor.speed();
+    double startValue = motor.getSpeed();
     if (startValue < stopValue) {
         startValue = stopValue;
     }
