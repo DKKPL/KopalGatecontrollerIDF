@@ -78,3 +78,54 @@ bool SafetyMonitor::pollSafetyEdge()
     }
     return safetyEdgeTriggered;
 }
+
+void SafetyMonitor::startEdgeClearTimer()
+{
+    if (edgeOkSinceMs < 0) {
+        edgeOkSinceMs = nowMs();
+    }
+}
+
+// OnSafetyEdgeTimerExpired: no equivalent.
+// pollSafetyEdge() checks nowMs() - edgeOkSinceMs instead of counting 1 s ticks.
+
+void SafetyMonitor::stopEdgeClearTimer()
+{
+    edgeOkSinceMs = -1;
+}
+
+// Backtrack means "move opposite to the interrupted movement".
+Direction SafetyActions::determineBacktrackDirection(Interrupted interrupted, bool movingOpen) const
+{
+    switch (interrupted) {
+    case Interrupted::Opening:    // SafetyOpenAfterOpening / SafetyOpenCloseAfterOpening
+        return Direction::Close;
+    case Interrupted::Closing:    // SafetyCloseAfterClosing / SafetyOpenCloseAfterClosing
+        return Direction::Open;
+    case Interrupted::Unknown:
+        break;
+    }
+
+    // Prefer the feedback pin (authoritative) if it is in use.
+    if (io.hasFeedbackDirection()) {
+        const bool feedbackOpen = io.isHigh(Input::FeedbackDirection);   // High = OpenDirection
+        return feedbackOpen ? Direction::Close : Direction::Open;
+    }
+
+    // Fallback: reverse the last known travel direction.
+    return movingOpen ? Direction::Close : Direction::Open;
+}
+
+Direction SafetyActions::applyBacktrackDirection(Interrupted interrupted, bool movingOpen, int postWriteDelayMs)
+{
+    const Direction backtrack = determineBacktrackDirection(interrupted, movingOpen);
+
+    // The caller handles motor enable / torque.
+    motor.setDirection(backtrack);
+    ESP_LOGD(TAG, "Applied backtrack direction: %s", backtrack == Direction::Open ? "Open" : "Close");
+
+    if (postWriteDelayMs > 0) {
+        sleepMs(postWriteDelayMs);
+    }
+    return backtrack;
+}
