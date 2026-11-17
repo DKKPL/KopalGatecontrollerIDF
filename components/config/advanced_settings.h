@@ -1,6 +1,0 @@
-#ifndef ADVANCED_SETTINGS_H
-#define ADVANCED_SETTINGS_H
-
-
-
-#endif // ADVANCED_SETTINGS_H

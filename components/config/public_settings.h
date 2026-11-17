@@ -1,6 +1,0 @@
-#ifndef PUBLIC_SETTINGS_H
-#define PUBLIC_SETTINGS_H
-
-
-
-#endif // PUBLIC_SETTINGS_H

@@ -1,0 +1,6 @@
+#ifndef KGC_HAL_COUNTER_H
+#define KGC_HAL_COUNTER_H
+
+
+
+#endif // KGC_HAL_COUNTER_H
