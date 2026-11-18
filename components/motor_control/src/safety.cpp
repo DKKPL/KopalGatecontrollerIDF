@@ -2,8 +2,8 @@
 
 #include "config/advanced_settings.h"
 #include "esp_log.h"
-#include "hal_io/io.h"
-#include "hal_motor/motor.h"
+#include "hal_io/hal_io.h"
+#include "hal_motor/hal_motor.h"
 #include "motor_control/time_util.h"
 
 static const char* TAG = "safety";

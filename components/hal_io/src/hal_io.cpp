@@ -1,4 +1,4 @@
-#include "hal_io/io.h"
+#include "hal_io/hal_io.h"
 
 #include "board/pins.h"
 #include "driver/gpio.h"

@@ -1,4 +1,4 @@
-#include "hal_counter/counter.h"
+#include "hal_counter/hal_counter.h"
 
 #include "board/pins.h"
 #include "driver/pulse_cnt.h"

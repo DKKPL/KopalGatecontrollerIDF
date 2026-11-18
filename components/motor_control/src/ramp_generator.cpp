@@ -1,6 +1,6 @@
 #include "motor_control/ramp_generator.h"
 
-#include "hal_motor/motor.h"
+#include "hal_motor/hal_motor.h"
 #include "motor_control/time_util.h"
 
 RampGenerator::RampGenerator(Kind kind, double startValue, double stopValue, double periodS, int64_t startMs)
