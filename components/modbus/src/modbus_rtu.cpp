@@ -394,6 +394,7 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
     send(req, reqLen);
 }
 
+
 // FC06 Write Single Register: 100 test register, 120-126 public settings,
 // 200 CLI command (1-9) or 0 to acknowledge.
 void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
