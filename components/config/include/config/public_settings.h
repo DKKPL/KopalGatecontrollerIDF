@@ -24,92 +24,78 @@ public:
     /**
      * @brief Copy of all settings, taken under one lock (new).
      */
-    PublicValues getValues() const { return read(values); }
+    PublicValues getValues() const;
     /**
      * @brief Replace all settings in one go (new).
      */
-    void setValues(const PublicValues& values) { write(this->values, values); }
+    void setValues(const PublicValues& values);
 
     /**
      * @brief Seconds before the gate closes by itself (was AutoCloseDelay).
      */
-    int getAutoCloseDelay() const { return read(values.autoCloseDelay); }
+    int getAutoCloseDelay() const;
     /**
      * @brief Set AutoCloseDelay.
      */
-    void setAutoCloseDelay(int seconds) { write(values.autoCloseDelay, seconds); }
+    void setAutoCloseDelay(int seconds);
     /**
      * @brief Pedestrian opening in meters (was PedestrianModeDistance).
      */
-    float getPedestrianModeDistance() const { return read(values.pedestrianModeDistance); }
+    float getPedestrianModeDistance() const;
     /**
      * @brief Set PedestrianModeDistance.
      */
-    void setPedestrianModeDistance(float meters) { write(values.pedestrianModeDistance, meters); }
+    void setPedestrianModeDistance(float meters);
     /**
      * @brief Pedestrian opening in encoder pulses (was PedestrianModeDistancePulse).
      * @param pulsesPerMeter AdvancedSettings::getPulsesPerMeter() (C# read a static copy of it)
      */
-    int getPedestrianModeDistancePulse(double pulsesPerMeter) const
-    {
-        return static_cast<int>(getPedestrianModeDistance() * pulsesPerMeter);
-    }
+    int getPedestrianModeDistancePulse(double pulsesPerMeter) const;
     /**
      * @brief Seconds the passage light stays on (was PassageLightDelay).
      */
-    int getPassageLightDelay() const { return read(values.passageLightDelay); }
+    int getPassageLightDelay() const;
     /**
      * @brief Set PassageLightDelay.
      */
-    void setPassageLightDelay(int seconds) { write(values.passageLightDelay, seconds); }
+    void setPassageLightDelay(int seconds);
     /**
      * @brief Seconds the beacon flashes before the gate moves (was BeaconPreWaringTime).
      */
-    int getBeaconPreWarningTime() const { return read(values.beaconPreWarningTime); }
+    int getBeaconPreWarningTime() const;
     /**
      * @brief Set BeaconPreWaringTime.
      */
-    void setBeaconPreWarningTime(int seconds) { write(values.beaconPreWarningTime, seconds); }
+    void setBeaconPreWarningTime(int seconds);
     /**
      * @brief Modbus RTU slave address (was ModbusAddress).
      */
-    int getModbusAddress() const { return read(values.modbusAddress); }
+    int getModbusAddress() const;
     /**
      * @brief Set ModbusAddress; the caller checks the range 1-247, like C#.
      */
-    void setModbusAddress(int address) { write(values.modbusAddress, address); }
+    void setModbusAddress(int address);
     /**
      * @brief Captive-portal redirect on (was AutoRedirectEnabled).
      */
-    bool getAutoRedirectEnabled() const { return read(values.autoRedirectEnabled); }
+    bool getAutoRedirectEnabled() const;
     /**
      * @brief Set AutoRedirectEnabled.
      */
-    void setAutoRedirectEnabled(bool enabled) { write(values.autoRedirectEnabled, enabled); }
+    void setAutoRedirectEnabled(bool enabled);
 
 private:
     /**
      * @brief Copy one value under the mutex.
      */
     template <typename T>
-    T read(const T& field) const
-    {
-        mu.lock();
-        const T copy = field;
-        mu.unlock();
-        return copy;
-    }
+    T read(const T& field) const;
 
     /**
      * @brief Set one value under the mutex.
      */
     template <typename T>
-    void write(T& field, const T& value)
-    {
-        mu.lock();
-        field = value;
-        mu.unlock();
-    }
+    void write(T& field, const T& value);
 
     mutable std::mutex mu;   ///< web/modbus write while the gate reads
     PublicValues values;     ///< all saved settings

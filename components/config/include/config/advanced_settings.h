@@ -111,181 +111,181 @@ public:
     /**
      * @brief The gate model (was GetParameterSet / PARAMETER_SET).
      */
-    ParameterSet getParameterSet() const { return read(values.parameterSet); }
+    ParameterSet getParameterSet() const;
     /**
      * @brief Set the gate model only; call applyDefaults() to load its defaults (was PARAMETER_SET).
      */
-    void setParameterSet(ParameterSet set) { write(values.parameterSet, set); }
+    void setParameterSet(ParameterSet set);
 
     // Encoder and travel
     /**
      * @brief Encoder pulses per meter of gate travel (was PULSES_PER_METER).
      */
-    double getPulsesPerMeter() const { return read(values.pulsesPerMeter); }
+    double getPulsesPerMeter() const;
     /**
      * @brief Set PULSES_PER_METER.
      */
-    void setPulsesPerMeter(double pulsesPerMeter) { write(values.pulsesPerMeter, pulsesPerMeter); }
+    void setPulsesPerMeter(double pulsesPerMeter);
     /**
      * @brief Encoder pulses per motor rotation (was ENC_PPR).
      */
-    float getEncPpr() const { return read(values.encPpr); }
+    float getEncPpr() const;
     /**
      * @brief Set ENC_PPR.
      */
-    void setEncPpr(float encPpr) { write(values.encPpr, encPpr); }
+    void setEncPpr(float encPpr);
     /**
      * @brief Read the encoder as quadrature A/B (was USE_QUADRATURE_ENCODER).
      */
-    bool getUseQuadratureEncoder() const { return read(values.useQuadratureEncoder); }
+    bool getUseQuadratureEncoder() const;
     /**
      * @brief Set USE_QUADRATURE_ENCODER; takes effect after a reboot.
      */
-    void setUseQuadratureEncoder(bool use) { write(values.useQuadratureEncoder, use); }
+    void setUseQuadratureEncoder(bool use);
     /**
      * @brief Count the encoder the other way round (was INVERT_ENCODER_COUNT).
      */
-    bool getInvertEncoderCount() const { return read(values.invertEncoderCount); }
+    bool getInvertEncoderCount() const;
     /**
      * @brief Set INVERT_ENCODER_COUNT.
      */
-    void setInvertEncoderCount(bool invert) { write(values.invertEncoderCount, invert); }
+    void setInvertEncoderCount(bool invert);
 
     // Motor driver
     /**
      * @brief Swap the motor's open and close direction (was INVERT_MOTOR_DIRECTION).
      */
-    bool getInvertMotorDirection() const { return read(values.invertMotorDirection); }
+    bool getInvertMotorDirection() const;
     /**
      * @brief Set INVERT_MOTOR_DIRECTION.
      */
-    void setInvertMotorDirection(bool invert) { write(values.invertMotorDirection, invert); }
+    void setInvertMotorDirection(bool invert);
     /**
      * @brief Drive the motor with run-open / run-close pins (was USE_DUAL_DIRECTION_INPUTS).
      */
-    bool getUseDualDirectionInputs() const { return read(values.useDualDirectionInputs); }
+    bool getUseDualDirectionInputs() const;
     /**
      * @brief Set USE_DUAL_DIRECTION_INPUTS.
      */
-    void setUseDualDirectionInputs(bool use) { write(values.useDualDirectionInputs, use); }
+    void setUseDualDirectionInputs(bool use);
     /**
      * @brief Use the motor disable pin (was USE_MOTOR_DISABLE).
      */
-    bool getUseMotorDisable() const { return read(values.useMotorDisable); }
+    bool getUseMotorDisable() const;
     /**
      * @brief Set USE_MOTOR_DISABLE.
      */
-    void setUseMotorDisable(bool use) { write(values.useMotorDisable, use); }
+    void setUseMotorDisable(bool use);
 
     // Speeds
     /**
      * @brief Teach run speed, 0..1 (was SPD_TCH).
      */
-    double getSpdTch() const { return read(values.spdTch); }
+    double getSpdTch() const;
     /**
      * @brief Set SPD_TCH.
      */
-    void setSpdTch(double speed) { write(values.spdTch, speed); }
+    void setSpdTch(double speed);
     /**
      * @brief Extra-force speed when closed without the close limit, 0..1 (was SPD_EXT_FORCE).
      */
-    double getSpdExtForce() const { return read(values.spdExtForce); }
+    double getSpdExtForce() const;
     /**
      * @brief Set SPD_EXT_FORCE.
      */
-    void setSpdExtForce(double speed) { write(values.spdExtForce, speed); }
+    void setSpdExtForce(double speed);
     /**
      * @brief Unlock move speed, 0..1 (was SPD_UNLCK).
      */
-    double getSpdUnlck() const { return read(values.spdUnlck); }
+    double getSpdUnlck() const;
     /**
      * @brief Set SPD_UNLCK.
      */
-    void setSpdUnlck(double speed) { write(values.spdUnlck, speed); }
+    void setSpdUnlck(double speed);
     /**
      * @brief Closing high speed, 0..1 (was SPD_HI_C).
      */
-    double getSpdHiC() const { return read(values.spdHiC); }
+    double getSpdHiC() const;
     /**
      * @brief Set SPD_HI_C.
      */
-    void setSpdHiC(double speed) { write(values.spdHiC, speed); }
+    void setSpdHiC(double speed);
     /**
      * @brief Closing slow speed, 0..1 (was SPD_LO_C).
      */
-    double getSpdLoC() const { return read(values.spdLoC); }
+    double getSpdLoC() const;
     /**
      * @brief Set SPD_LO_C.
      */
-    void setSpdLoC(double speed) { write(values.spdLoC, speed); }
+    void setSpdLoC(double speed);
     /**
      * @brief Opening high speed, 0..1 (was SPD_HI_O).
      */
-    double getSpdHiO() const { return read(values.spdHiO); }
+    double getSpdHiO() const;
     /**
      * @brief Set SPD_HI_O.
      */
-    void setSpdHiO(double speed) { write(values.spdHiO, speed); }
+    void setSpdHiO(double speed);
     /**
      * @brief Opening slow speed, 0..1 (was SPD_LO_O).
      */
-    double getSpdLoO() const { return read(values.spdLoO); }
+    double getSpdLoO() const;
     /**
      * @brief Set SPD_LO_O.
      */
-    void setSpdLoO(double speed) { write(values.spdLoO, speed); }
+    void setSpdLoO(double speed);
 
     // Ramps
     /**
      * @brief Closing ramp up (was ACC_C).
      */
-    double getAccC() const { return read(values.accC); }
+    double getAccC() const;
     /**
      * @brief Set ACC_C.
      */
-    void setAccC(double acc) { write(values.accC, acc); }
+    void setAccC(double acc);
     /**
      * @brief Closing ramp down (was DEC_C).
      */
-    double getDecC() const { return read(values.decC); }
+    double getDecC() const;
     /**
      * @brief Set DEC_C.
      */
-    void setDecC(double dec) { write(values.decC, dec); }
+    void setDecC(double dec);
     /**
      * @brief Opening ramp up (was ACC_O).
      */
-    double getAccO() const { return read(values.accO); }
+    double getAccO() const;
     /**
      * @brief Set ACC_O.
      */
-    void setAccO(double acc) { write(values.accO, acc); }
+    void setAccO(double acc);
     /**
      * @brief Opening ramp down (was DEC_O).
      */
-    double getDecO() const { return read(values.decO); }
+    double getDecO() const;
     /**
      * @brief Set DEC_O.
      */
-    void setDecO(double dec) { write(values.decO, dec); }
+    void setDecO(double dec);
 
     // Slow-down distances
     /**
      * @brief Slow-down distance before closed, meters (was APP_C).
      */
-    double getAppC() const { return read(values.appC); }
+    double getAppC() const;
     /**
      * @brief Set APP_C.
      */
-    void setAppC(double meters) { write(values.appC, meters); }
+    void setAppC(double meters);
     /**
      * @brief Slow-down distance before open, meters (was APP_O).
      */
-    double getAppO() const { return read(values.appO); }
+    double getAppO() const;
     /**
      * @brief Set APP_O.
      */
-    void setAppO(double meters) { write(values.appO, meters); }
+    void setAppO(double meters);
     /**
      * @brief APP_C in encoder pulses (was APP_C_Pulses).
      */
@@ -299,35 +299,35 @@ public:
     /**
      * @brief Torque limit in normal operation, 0..1 (was TQ_OPS).
      */
-    double getTqOps() const { return read(values.tqOps); }
+    double getTqOps() const;
     /**
      * @brief Set TQ_OPS.
      */
-    void setTqOps(double torque) { write(values.tqOps, torque); }
+    void setTqOps(double torque);
     /**
      * @brief Torque limit inside the safety zone, 0..1 (was TQ_SFTY).
      */
-    double getTqSfty() const { return read(values.tqSfty); }
+    double getTqSfty() const;
     /**
      * @brief Set TQ_SFTY.
      */
-    void setTqSfty(double torque) { write(values.tqSfty, torque); }
+    void setTqSfty(double torque);
     /**
      * @brief Safety zone start, meters from closed (was TQ_STFY_ZONE_STRT).
      */
-    double getTqSftyZoneStrt() const { return read(values.tqSftyZoneStrt); }
+    double getTqSftyZoneStrt() const;
     /**
      * @brief Set TQ_STFY_ZONE_STRT.
      */
-    void setTqSftyZoneStrt(double meters) { write(values.tqSftyZoneStrt, meters); }
+    void setTqSftyZoneStrt(double meters);
     /**
      * @brief Safety zone end, meters from closed (was TQ_STFY_ZONE_STOP).
      */
-    double getTqSftyZoneStop() const { return read(values.tqSftyZoneStop); }
+    double getTqSftyZoneStop() const;
     /**
      * @brief Set TQ_STFY_ZONE_STOP.
      */
-    void setTqSftyZoneStop(double meters) { write(values.tqSftyZoneStop, meters); }
+    void setTqSftyZoneStop(double meters);
     /**
      * @brief Safety zone start in pulses (was TQ_STFY_ZONE_STRT_PULSES).
      */
@@ -339,85 +339,85 @@ public:
     /**
      * @brief Torque trips allowed before the gate gives up (was TorqueRetryMaxCount).
      */
-    int getTorqueRetryMaxCount() const { return read(values.torqueRetryMaxCount); }
+    int getTorqueRetryMaxCount() const;
     /**
      * @brief Set TorqueRetryMaxCount.
      */
-    void setTorqueRetryMaxCount(int count) { write(values.torqueRetryMaxCount, count); }
+    void setTorqueRetryMaxCount(int count);
 
     // Safety reactions
     /**
      * @brief Back off after a torque limit (was BT_AFT_TQ_LMT).
      */
-    bool getBtAftTqLmt() const { return read(values.btAftTqLmt); }
+    bool getBtAftTqLmt() const;
     /**
      * @brief Set BT_AFT_TQ_LMT.
      */
-    void setBtAftTqLmt(bool backtrack) { write(values.btAftTqLmt, backtrack); }
+    void setBtAftTqLmt(bool backtrack);
     /**
      * @brief Back off after the safety edge (was BT_AFT_SE).
      */
-    bool getBtAftSe() const { return read(values.btAftSe); }
+    bool getBtAftSe() const;
     /**
      * @brief Set BT_AFT_SE.
      */
-    void setBtAftSe(bool backtrack) { write(values.btAftSe, backtrack); }
+    void setBtAftSe(bool backtrack);
     /**
      * @brief Back-off time in ms (was BT_TIME).
      */
-    int getBtTime() const { return read(values.btTime); }
+    int getBtTime() const;
     /**
      * @brief Set BT_TIME.
      */
-    void setBtTime(int ms) { write(values.btTime, ms); }
+    void setBtTime(int ms);
     /**
      * @brief Seconds the safety must stay OK before it is released (was SafetyEdgeWaitTime).
      */
-    int getSafetyEdgeWaitTime() const { return read(values.safetyEdgeWaitTime); }
+    int getSafetyEdgeWaitTime() const;
     /**
      * @brief Set SafetyEdgeWaitTime.
      */
-    void setSafetyEdgeWaitTime(int seconds) { write(values.safetyEdgeWaitTime, seconds); }
+    void setSafetyEdgeWaitTime(int seconds);
     /**
      * @brief true: continue the movement after safety OK; false: stop (was SafetyResume).
      */
-    bool getSafetyResume() const { return read(values.safetyResume); }
+    bool getSafetyResume() const;
     /**
      * @brief Set SafetyResume.
      */
-    void setSafetyResume(bool resume) { write(values.safetyResume, resume); }
+    void setSafetyResume(bool resume);
     /**
      * @brief Pressure sensor while opening: true = continue, false = reverse (was WAIT_SOC_DO).
      */
-    bool getWaitSocDo() const { return read(values.waitSocDo); }
+    bool getWaitSocDo() const;
     /**
      * @brief Set WAIT_SOC_DO.
      */
-    void setWaitSocDo(bool wait) { write(values.waitSocDo, wait); }
+    void setWaitSocDo(bool wait);
     /**
      * @brief Photocell (swing gate) while opening: true = continue, false = reverse (was WAIT_SO_DO).
      */
-    bool getWaitSoDo() const { return read(values.waitSoDo); }
+    bool getWaitSoDo() const;
     /**
      * @brief Set WAIT_SO_DO.
      */
-    void setWaitSoDo(bool wait) { write(values.waitSoDo, wait); }
+    void setWaitSoDo(bool wait);
     /**
      * @brief Pressure sensor while closing: true = continue, false = reverse (was WAIT_SOC_DC).
      */
-    bool getWaitSocDc() const { return read(values.waitSocDc); }
+    bool getWaitSocDc() const;
     /**
      * @brief Set WAIT_SOC_DC.
      */
-    void setWaitSocDc(bool wait) { write(values.waitSocDc, wait); }
+    void setWaitSocDc(bool wait);
     /**
      * @brief Torque or photocell while closing: true = continue, false = reverse (was WAIT_SC_DC).
      */
-    bool getWaitScDc() const { return read(values.waitScDc); }
+    bool getWaitScDc() const;
     /**
      * @brief Set WAIT_SC_DC.
      */
-    void setWaitScDc(bool wait) { write(values.waitScDc, wait); }
+    void setWaitScDc(bool wait);
 
     // Pedestrian
     /**
@@ -429,71 +429,71 @@ public:
     /**
      * @brief The lock is a solenoid magnet (was SOLENOID_MAGNET).
      */
-    bool getSolenoidMagnet() const { return read(values.solenoidMagnet); }
+    bool getSolenoidMagnet() const;
     /**
      * @brief Set SOLENOID_MAGNET.
      */
-    void setSolenoidMagnet(bool magnet) { write(values.solenoidMagnet, magnet); }
+    void setSolenoidMagnet(bool magnet);
     /**
      * @brief Idle seconds after which the next start gets the lock pre-warning (was GateIdleLockTimeoutSeconds).
      */
-    int getGateIdleLockTimeoutSeconds() const { return read(values.gateIdleLockTimeoutSeconds); }
+    int getGateIdleLockTimeoutSeconds() const;
     /**
      * @brief Set GateIdleLockTimeoutSeconds.
      */
-    void setGateIdleLockTimeoutSeconds(int seconds) { write(values.gateIdleLockTimeoutSeconds, seconds); }
+    void setGateIdleLockTimeoutSeconds(int seconds);
     /**
      * @brief Unlock move time in ms (was UNLCK_MOVE_TIME).
      */
-    int getUnlckMoveTime() const { return read(values.unlckMoveTime); }
+    int getUnlckMoveTime() const;
     /**
      * @brief Set UNLCK_MOVE_TIME.
      */
-    void setUnlckMoveTime(int ms) { write(values.unlckMoveTime, ms); }
+    void setUnlckMoveTime(int ms);
     /**
      * @brief Unlock time in ms (was UNLCK_TIME; the gate does not use it).
      */
-    int getUnlckTime() const { return read(values.unlckTime); }
+    int getUnlckTime() const;
     /**
      * @brief Set UNLCK_TIME.
      */
-    void setUnlckTime(int ms) { write(values.unlckTime, ms); }
+    void setUnlckTime(int ms);
 
     // Limits and duration test
     /**
      * @brief Max run time in seconds (was OpsLimt).
      */
-    int getOpsLimit() const { return read(values.opsLimit); }
+    int getOpsLimit() const;
     /**
      * @brief Set OpsLimt.
      */
-    void setOpsLimit(int seconds) { write(values.opsLimit, seconds); }
+    void setOpsLimit(int seconds);
     /**
      * @brief Duration test: open again after fully closed (was SIM_OPEN_ENABLED).
      */
-    bool getSimOpenEnabled() const { return read(values.simOpenEnabled); }
+    bool getSimOpenEnabled() const;
     /**
      * @brief Set SIM_OPEN_ENABLED.
      */
-    void setSimOpenEnabled(bool enabled) { write(values.simOpenEnabled, enabled); }
+    void setSimOpenEnabled(bool enabled);
     /**
      * @brief Duration test delay in seconds, 0 = at once (was SIM_OPEN_DELAY_S).
      */
-    int getSimOpenDelayS() const { return read(values.simOpenDelayS); }
+    int getSimOpenDelayS() const;
     /**
      * @brief Set SIM_OPEN_DELAY_S.
      */
-    void setSimOpenDelayS(int seconds) { write(values.simOpenDelayS, seconds); }
+    void setSimOpenDelayS(int seconds);
 
     // Stop counter (cycles)
     /**
      * @brief Number of completed close cycles (was StopCount).
      */
-    uint32_t getStopCount() const { return read(stopCount); }
+    uint32_t getStopCount() const;
     /**
      * @brief Set StopCount (Modbus write, web "Reset Cycles"); RAM only until saved.
      */
-    void setStopCount(uint32_t count) { write(stopCount, count); }
+    void setStopCount(uint32_t count);
     /**
      * @brief Add one to the stop count (was IncreaseStopCount).
      */
@@ -511,24 +511,13 @@ private:
      * @brief Copy one value under the mutex.
      */
     template <typename T>
-    T read(const T& field) const
-    {
-        mu.lock();
-        const T copy = field;
-        mu.unlock();
-        return copy;
-    }
+    T read(const T& field) const;
 
     /**
      * @brief Set one value under the mutex.
      */
     template <typename T>
-    void write(T& field, T value)
-    {
-        mu.lock();
-        field = value;
-        mu.unlock();
-    }
+    void write(T& field, T value);
 
     mutable std::mutex mu;   ///< web/modbus write while the gate reads
     AdvancedValues values;   ///< all saved settings

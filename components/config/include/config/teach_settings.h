@@ -20,52 +20,41 @@ public:
     /**
      * @brief Copy of both positions, taken under one lock (new).
      */
-    TeachValues getValues() const { return read(values); }
+    TeachValues getValues() const;
     /**
      * @brief Replace both positions in one go (new).
      */
-    void setValues(const TeachValues& values) { write(this->values, values); }
+    void setValues(const TeachValues& values);
 
     /**
      * @brief Fully open position in pulses, 0 = not taught (was POS_O).
      */
-    int64_t getPosO() const { return read(values.posO); }
+    int64_t getPosO() const;
     /**
      * @brief Set POS_O.
      */
-    void setPosO(int64_t posO) { write(values.posO, posO); }
+    void setPosO(int64_t posO);
     /**
      * @brief Actual gate position in pulses (was POS_A).
      */
-    int64_t getPosA() const { return read(values.posA); }
+    int64_t getPosA() const;
     /**
      * @brief Set POS_A.
      */
-    void setPosA(int64_t posA) { write(values.posA, posA); }
+    void setPosA(int64_t posA);
 
 private:
     /**
      * @brief Copy one value under the mutex.
      */
     template <typename T>
-    T read(const T& field) const
-    {
-        mu.lock();
-        const T copy = field;
-        mu.unlock();
-        return copy;
-    }
+    T read(const T& field) const;
 
     /**
      * @brief Set one value under the mutex.
      */
     template <typename T>
-    void write(T& field, const T& value)
-    {
-        mu.lock();
-        field = value;
-        mu.unlock();
-    }
+    void write(T& field, const T& value);
 
     mutable std::mutex mu;   ///< the gate writes while the web reads
     TeachValues values;      ///< both saved positions
