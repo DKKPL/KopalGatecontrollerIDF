@@ -22,3 +22,87 @@ static constexpr const char* kKeyAdvanced = "advanced";
 static constexpr const char* kKeyTeach = "teach";
 static constexpr const char* kKeyStopCount = "stopCount";
 static constexpr const char* kKeyBuildStamp = "buildStamp";
+
+bool ConfigStorage::begin()
+{
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // Partition full or written by another IDF version: erase it, all settings go back to defaults
+        ESP_LOGW(TAG, "NVS unusable (%s), erasing it", esp_err_to_name(err));
+        err = nvs_flash_erase();
+        if (err == ESP_OK) {
+            err = nvs_flash_init();
+        }
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS init failed: %s", esp_err_to_name(err));
+        return false;
+    }
+
+    nvs_handle_t nvs = 0;
+    err = nvs_open(kNamespace, NVS_READWRITE, &nvs);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Opening NVS namespace failed: %s", esp_err_to_name(err));
+        return false;
+    }
+    handle = nvs;
+    ready = true;
+    return true;
+}
+
+bool ConfigStorage::readBlob(const char* key, void* data, size_t size)
+{
+    if (!ready) {
+        return false;
+    }
+    // One read. NVS refuses a stored blob that is bigger than size (INVALID_LENGTH) and
+    // copies a smaller one; either way length then holds the stored size.
+    // The callers read into a temporary, so a partly filled data is never used.
+    size_t length = size;
+    const esp_err_t err = nvs_get_blob(handle, key, data, &length);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        return false;
+    }
+    if (err == ESP_ERR_NVS_INVALID_LENGTH || (err == ESP_OK && length != size)) {
+        // Saved by firmware with another settings layout
+        ESP_LOGW(TAG, "%s has %u bytes, expected %u: not used", key,
+                 static_cast<unsigned>(length), static_cast<unsigned>(size));
+        return false;
+    }
+    if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Reading %s failed: %s", key, esp_err_to_name(err));
+        return false;
+    }
+    return true;
+}
+
+bool ConfigStorage::writeBlob(const char* key, const void* data, size_t size)
+{
+    if (!ready) {
+        ESP_LOGE(TAG, "Saving %s failed: NVS not started", key);
+        return false;
+    }
+    esp_err_t err = nvs_set_blob(handle, key, data, size);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Saving %s failed: %s", key, esp_err_to_name(err));
+        return false;
+    }
+    return true;
+}
+
+void ConfigStorage::eraseKey(const char* key)
+{
+    if (!ready) {
+        return;
+    }
+    esp_err_t err = nvs_erase_key(handle, key);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "Deleting %s failed: %s", key, esp_err_to_name(err));
+    }
+}
