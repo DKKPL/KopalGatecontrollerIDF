@@ -14,7 +14,7 @@ class TeachSettings;
 class ConfigStorage {
 public:
     /**
-     * @brief Start NVS and open the settings namespace; call once at startup, before Wi-Fi (new).
+     * @brief Start NVS, open the settings namespace and check the build stamp; call once at startup, before Wi-Fi (new).
      * @return false when NVS cannot be used; loads then fail and the settings keep their defaults
      */
     bool begin();
@@ -25,8 +25,7 @@ public:
     static const char* getFirmwareBuildStamp();
 
     /**
-     * @brief Load all settings at startup; missing ones get their defaults and are saved.
-     * A changed firmware build stamp first clears everything, which forces a re-teach (was Program.LoadConfigs).
+     * @brief Load all settings at startup; missing ones get their defaults and are saved (was Program.LoadConfigs).
      */
     void loadAll(PublicSettings& pub, AdvancedSettings& adv, TeachSettings& teach);
 
@@ -89,6 +88,11 @@ private:
      * @brief Delete a key and commit; a missing key is fine.
      */
     void eraseKey(const char* key);
+
+    /**
+     * @brief Clear all saved settings when the firmware build stamp changed; forces a re-teach (was the start of LoadConfigs).
+     */
+    void checkBuildStamp();
 
     uint32_t handle = 0;   ///< open NVS handle (nvs_handle_t)
     bool ready = false;    ///< begin() succeeded

@@ -47,7 +47,48 @@ bool ConfigStorage::begin()
     }
     handle = nvs;
     ready = true;
+
+    // Stored settings from another deployment must not be used: check before anything is loaded.
+    checkBuildStamp();
     return true;
+}
+
+void ConfigStorage::checkBuildStamp()
+{
+    // --- New-deployment detection: a changed kFirmwareBuildStamp forces a re-teach and fresh settings ---
+    char previousStamp[32] = "";
+    size_t length = sizeof(previousStamp);
+    if (ready) {
+        const esp_err_t err = nvs_get_str(handle, kKeyBuildStamp, previousStamp, &length);
+        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+            ESP_LOGD(TAG, "[CONFIG] Failed reading build stamp: %s", esp_err_to_name(err));
+        }
+        if (err != ESP_OK) {
+            previousStamp[0] = '\0';
+        }
+    }
+
+    const bool newFirmwareDetected = strcmp(previousStamp, kFirmwareBuildStamp) != 0;
+
+    ESP_LOGD(TAG, "[CONFIG] Firmware stamp check: previous='%s', current='%s', newFirmwareDetected=%d",
+             previousStamp, kFirmwareBuildStamp, newFirmwareDetected);
+
+    if (newFirmwareDetected) {
+        ESP_LOGD(TAG, "[CONFIG] New firmware detected (stamp changed: '%s' -> '%s'). Clearing TeachSettings "
+                 "for re-teach and AdvancedSettings for fresh defaults.", previousStamp, kFirmwareBuildStamp);
+        clearTeach();
+        clearAdvanced();
+        clearPublic();
+
+        esp_err_t err = ready ? nvs_set_str(handle, kKeyBuildStamp, kFirmwareBuildStamp) : ESP_ERR_INVALID_STATE;
+        if (err == ESP_OK) {
+            err = nvs_commit(handle);
+        }
+        if (err != ESP_OK) {
+            ESP_LOGD(TAG, "[CONFIG] Failed writing build stamp: %s", esp_err_to_name(err));
+        }
+    }
+    // --- End new-deployment detection ---
 }
 
 bool ConfigStorage::readBlob(const char* key, void* data, size_t size)
