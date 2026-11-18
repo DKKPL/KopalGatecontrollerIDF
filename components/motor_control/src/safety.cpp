@@ -67,7 +67,7 @@ bool SafetyMonitor::pollSafetyEdge()
     if (safetyEdgeTriggered) {
         // Was triggered: the edge must stay OK for SafetyEdgeWaitTime before we clear it.
         startEdgeClearTimer();
-        if (nowMs() - edgeOkSinceMs >= static_cast<int64_t>(adv.safetyEdgeWaitTime()) * 1000) {
+        if (nowMs() - edgeOkSinceMs >= static_cast<int64_t>(adv.getSafetyEdgeWaitTime()) * 1000) {
             safetyEdgeTriggered = false;
             stopEdgeClearTimer();
         }
@@ -150,7 +150,7 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
             ESP_LOGD(TAG, "Still triggered, toggling motor disable/direction (try %d/%d)...", tries + 1, kMaxTries);
             motor.setDisabled(true);
 
-            if (adv.useDualDirectionInputs()) {
+            if (adv.getUseDualDirectionInputs()) {
                 // No independent direction pin in dual mode: pulse the run state briefly.
                 // The driver is disabled, so this cannot cause real movement.
                 motor.setDirection(Direction::Open);
@@ -178,7 +178,7 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
         // Make sure the motor is stopped before changing direction.
         motor.setRun(false);
         motor.setSpeed(1.0f);
-        motor.setTorque(adv.tqOps());
+        motor.setTorque(adv.getTqOps());
 
         // Apply backtrack direction (writes direction pin and waits).
         applyBacktrackDirection(interrupted, movingOpen);
@@ -190,7 +190,7 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
         if (doBacktrack) {
             ESP_LOGD(TAG, "Backtrack...");
             motor.setRun(true);
-            sleepMs(adv.btTime());
+            sleepMs(adv.getBtTime());
             motor.setRun(false);
         }
     }
@@ -223,15 +223,15 @@ void SafetyActions::handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted inter
     motor.enableForMovement();
 
     // Speed and torque for the backtrack.
-    motor.setSpeed(static_cast<float>(adv.spdHiC()));
-    motor.setTorque(adv.tqOps());
+    motor.setSpeed(static_cast<float>(adv.getSpdHiC()));
+    motor.setTorque(adv.getTqOps());
 
     applyBacktrackDirection(interrupted, movingOpen);
 
     if (doBacktrack) {
         ESP_LOGD(TAG, "Backtrack: pulsing start...");
         motor.setRun(true);
-        sleepMs(adv.btTime());
+        sleepMs(adv.getBtTime());
         motor.setRun(false);
     }
 }

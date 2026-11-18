@@ -71,6 +71,8 @@ enum class GateCommand : uint8_t {
     Osc,              ///< _remoteCmdPosc       -> latched OSC
     Pedestrian,       ///< _remoteCmdPedestrian -> latched Pedestrian
     ToggleAutoClose,  ///< _remoteCmdAutoclose  -> toggle auto-close
+    ApplySettings,    ///< web saved the settings: re-apply USE_MOTOR_DISABLE (was Program.ApplyUseMotorDisableSetting)
+    MotorOff,         ///< wifi before a reboot: motor run low, speed and torque 0 (was DisableWifi)
 };
 
 /**
@@ -94,6 +96,9 @@ struct GateStatus {
     bool photocellTriggered = false;
     bool safetyEdgeTriggered = false;
     bool torqueLimitTriggered = false;
+    bool actualDirectionOpening = false;   ///< bActualMotorDirection (true = opening), for Modbus
+    bool lsoActivated = false;             ///< bLsoActivated, for Modbus
+    bool lscActivated = false;             ///< bLscActivated, for Modbus
 };
 
 #endif // APP_CONTROLLER_GATE_TYPES_H

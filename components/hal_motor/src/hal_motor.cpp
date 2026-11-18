@@ -111,11 +111,11 @@ void Motor::applyOutputs()
     // INVERT_MOTOR_DIRECTION flips the physical direction when the motor is wired or geared
     // the other way round. Done here, the single logical -> physical point, so every caller is covered.
     Direction effective = direction;
-    if (adv.invertMotorDirection()) {
+    if (adv.getInvertMotorDirection()) {
         effective = (direction == Direction::Open) ? Direction::Close : Direction::Open;
     }
     // Inputs for the motor
-    if (!adv.useDualDirectionInputs()) {
+    if (!adv.getUseDualDirectionInputs()) {
         // Legacy behaviour, exactly as before.
         gpio_set_level(pins::kMotorStartStop, run ? 1 : 0);
         gpio_set_level(pins::kMotorDirection, effective == Direction::Open ? 1 : 0);
@@ -175,13 +175,13 @@ void Motor::setDisabled(bool disabled)
 
 void Motor::applyUseMotorDisableSetting()
 {
-    setDisabled(adv.useMotorDisable());
-    ESP_LOGD(TAG, "applyUseMotorDisableSetting: %d", adv.useMotorDisable());
+    setDisabled(adv.getUseMotorDisable());
+    ESP_LOGD(TAG, "applyUseMotorDisableSetting: %d", adv.getUseMotorDisable());
 }
 
 void Motor::enableForMovement()
 {
-    if (adv.useMotorDisable()) {
+    if (adv.getUseMotorDisable()) {
         return;
     }
     setDisabled(false);
