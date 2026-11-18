@@ -8,6 +8,10 @@
 //
 // FC05 writes 0xFF00 = momentary button press, 0x0000 does nothing; FC01 always reads 0.
 // FC02 reads input registers 1-22 as bits (wire 0-21).
+// TODO: FC02 is the only function code with 0-based wire addresses (wire 0 = input 1);
+//       FC01/03/04/05/06 use the address directly (FC04: wire 1 = register 1). Make them
+//       consistent after the port, together with the Modbus master and a firmware
+//       version bump (registers 102/103): changing it alone shifts every input by one.
 // FC03 reads 100 raw, 101-111 like FC04, and 200 as the last CLI code.
 // CLI (output goes to the log): FC06 write the code to 200, FC04 poll 200 until it
 // reads 2 (done), FC06 write 0 to 200 to acknowledge.
