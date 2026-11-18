@@ -127,32 +127,25 @@ void ModbusSlave::processCli()
     }
     cliRequested = false;
 
-    const char* cmd = cliCodeToCommand(cliCmd);
-    if (cmd == nullptr) {
+    const auto code = static_cast<modbus::CliCode>(cliCmd);
+    if (code < modbus::CliCode::Status || code > modbus::CliCode::Reset) {
+        ESP_LOGW(TAG, "Unknown CLI code: %d (valid: 1-9)", cliCmd);
         cliStatus = modbus::CliStatus::Idle;
         return;
     }
 
-    ESP_LOGI(TAG, "CLI [%d] -> '%s'", cliCmd, cmd);
+    ESP_LOGI(TAG, "CLI [%d] -> '%s'", cliCmd, cliCommandName(cliCmd));
     cliStatus = modbus::CliStatus::Pending;
-    cliExecute(cmd);
+    cliExecute(code);
     cliStatus = modbus::CliStatus::Done;
     ESP_LOGI(TAG, "CLI [%d] done - write 0 to reg 200 to clear", cliCmd);
 }
 
-const char* ModbusSlave::cliCodeToCommand(uint8_t code)
-{
-    if (code >= static_cast<uint8_t>(modbus::CliCode::Status) && code <= static_cast<uint8_t>(modbus::CliCode::Reset)) {
-        return cliCommandName(code);
-    }
-    ESP_LOGW(TAG, "Unknown CLI code: %d (valid: 1-9)", code);
-    return nullptr;
-}
-
 // One short line of output per command, through the log.
-void ModbusSlave::cliExecute(const char* cmd)
+void ModbusSlave::cliExecute(modbus::CliCode code)
 {
-    if (strcmp(cmd, "status") == 0) {
+    switch (code) {
+    case modbus::CliCode::Status: {
         const GateStatus st = gate.getStatus();
         ESP_LOGI(TAG, "[CLI] moving=%s dir=%s locked=%s flash=%s light=%s autoclose=%s "
                  "lso=%s lsc=%s photo=%s safety=%s torqueLim=%s",
@@ -160,7 +153,9 @@ void ModbusSlave::cliExecute(const char* cmd)
                  boolText(st.flash), boolText(st.passageLight), boolText(st.autoClose),
                  boolText(st.lsoActivated), boolText(st.lscActivated), boolText(st.photocellTriggered),
                  boolText(st.safetyEdgeTriggered), boolText(st.torqueLimitTriggered));
-    } else if (strcmp(cmd, "gpio") == 0) {
+        break;
+    }
+    case modbus::CliCode::Gpio: {
         const GateStatus st = gate.getStatus();
         char bits[23];
         for (int i = 1; i <= 22; i++) {
@@ -168,19 +163,29 @@ void ModbusSlave::cliExecute(const char* cmd)
         }
         bits[22] = '\0';
         ESP_LOGI(TAG, "[CLI] Peripherals 1-22: %s", bits);
-    } else if (strcmp(cmd, "errors") == 0) {
+        break;
+    }
+    case modbus::CliCode::Errors:
         ESP_LOGI(TAG, "[CLI] No error log available");
-    } else if (strcmp(cmd, "clear") == 0) {
+        break;
+    case modbus::CliCode::Clear:
         ESP_LOGI(TAG, "[CLI] Error log cleared");
-    } else if (strcmp(cmd, "counters") == 0) {
+        break;
+    case modbus::CliCode::Counters: {
         const GateStatus st = gate.getStatus();
         const int upSeconds = static_cast<int>((nowMs() - startMs) / 1000);
         ESP_LOGI(TAG, "[CLI] pulses=%" PRId64 " uptime=%ds", st.position, upSeconds);
-    } else if (strcmp(cmd, "version") == 0) {
+        break;
+    }
+    case modbus::CliCode::Version:
         ESP_LOGI(TAG, "[CLI] FW:%s Build:%s", modbus::kFwVersion, ConfigStorage::getFirmwareBuildStamp());
-    } else if (strcmp(cmd, "cell") == 0 || strcmp(cmd, "mqtt") == 0 || strcmp(cmd, "reset") == 0) {
-        ESP_LOGI(TAG, "[CLI] '%s' not available", cmd);
-    } else {
-        ESP_LOGW(TAG, "[CLI] Unknown command '%s'", cmd);
+        break;
+    case modbus::CliCode::Cell:
+    case modbus::CliCode::Mqtt:
+    case modbus::CliCode::Reset:
+        ESP_LOGI(TAG, "[CLI] '%s' not available", cliCommandName(static_cast<uint8_t>(code)));
+        break;
+    case modbus::CliCode::None:
+        break;
     }
 }

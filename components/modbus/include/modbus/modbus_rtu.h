@@ -103,14 +103,9 @@ private:
      */
     void processCli();
     /**
-     * @brief CLI code 1-9 to its command name; logs and returns nullptr for others
-     *        (was ModbusCliCodeToCommand).
-     */
-    const char* cliCodeToCommand(uint8_t code);
-    /**
      * @brief Run one CLI command; its output is one line in the log (was ModbusCliExecute).
      */
-    void cliExecute(const char* cmd);
+    void cliExecute(modbus::CliCode code);
 
     /**
      * @brief Send a response with DE high, then listen again (was ModbusSend).
