@@ -55,3 +55,34 @@ bool GateCommands::pollAutoClose()
 {
     return autoClose = !io.isHigh(Input::AutoClose);
 }
+
+void GateCommands::applyCommand(GateCommand cmd)
+{
+    switch (cmd) {
+    case GateCommand::Open:
+        latchedOpen = true;
+        break;
+    case GateCommand::Close:
+        latchedClose = true;
+        break;
+    case GateCommand::Pedestrian:
+        latchedPedestrian = true;
+        break;
+    case GateCommand::Osc:
+        latchedOsc = true;
+        break;
+    case GateCommand::ToggleAutoClose:
+        autoClose = !autoClose;
+        break;
+    case GateCommand::ApplySettings:
+        break;   // handled by GateController::drainCommands
+    }
+}
+
+void GateCommands::clearLatches()
+{
+    latchedOsc = false;
+    latchedOpen = false;
+    latchedClose = false;
+    latchedPedestrian = false;
+}

@@ -40,7 +40,7 @@ public:
     /**
      * @brief Handle one command from Modbus or the web page as if the button was pressed.
      */
-    void applyRemote(GateCommand cmd);
+    void applyCommand(GateCommand cmd);
     /**
      * @brief Forget all remembered presses.
      */
