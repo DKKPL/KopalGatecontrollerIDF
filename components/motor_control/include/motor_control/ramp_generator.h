@@ -37,11 +37,11 @@ public:
     /**
      * @brief The speed the ramp ends at.
      */
-    double getStopValue() const { return stopValue; }
+    double getStopValue() const;
     /**
      * @brief Whether this ramp goes up or down.
      */
-    Kind getKind() const { return kind; }
+    Kind getKind() const;
 
 private:
     /**

@@ -63,15 +63,15 @@ public:
     /**
      * @brief Result of the last pollPhotocell().
      */
-    bool isPhotocellTriggered() const { return photocellTriggered; }
+    bool isPhotocellTriggered() const;
     /**
      * @brief Result of the last pollTorqueLimit().
      */
-    bool isTorqueLimitTriggered() const { return torqueLimitTriggered; }
+    bool isTorqueLimitTriggered() const;
     /**
      * @brief Result of the last pollSafetyEdge().
      */
-    bool isSafetyEdgeTriggered() const { return safetyEdgeTriggered; }
+    bool isSafetyEdgeTriggered() const;
 
 private:
     /**

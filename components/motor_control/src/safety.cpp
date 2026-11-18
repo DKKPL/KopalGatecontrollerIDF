@@ -17,6 +17,21 @@ SafetyActions::SafetyActions(Motor& motor, const Io& io, SafetyMonitor& monitor,
 {
 }
 
+bool SafetyMonitor::isPhotocellTriggered() const
+{
+    return photocellTriggered;
+}
+
+bool SafetyMonitor::isTorqueLimitTriggered() const
+{
+    return torqueLimitTriggered;
+}
+
+bool SafetyMonitor::isSafetyEdgeTriggered() const
+{
+    return safetyEdgeTriggered;
+}
+
 // True when closing is allowed: photocell and torque limit not triggered.
 bool SafetyMonitor::closeOk() const
 {
