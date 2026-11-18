@@ -40,14 +40,6 @@ public:
 
 private:
     /**
-     * @brief Lines the log ring buffer holds; when full the oldest is dropped (was MB_LOG_CAPACITY).
-     */
-    static constexpr int kLogCapacity = 16;
-    /**
-     * @brief Longest log line in characters; longer lines are cut.
-     */
-    static constexpr int kLogLineLength = 192;
-    /**
      * @brief Largest response: 3 header + 125 * 2 data + 2 CRC bytes.
      */
     static constexpr int kRespBufSize = 255;
@@ -130,14 +122,6 @@ private:
     void sendException(uint8_t fc, uint8_t exceptionCode);
 
     /**
-     * @brief Put a line in the log ring buffer; does not block (was MbLog).
-     */
-    void queueLog(const char* format, ...) __attribute__((format(printf, 2, 3)));
-    /**
-     * @brief Print the oldest queued log line, if any (was DrainMbLog).
-     */
-    void drainLog();
-    /**
      * @brief Log one readable line for a request addressed to us (was ModbusLogFrame).
      */
     void logFrame(const uint8_t* buf, int len);
@@ -172,11 +156,6 @@ private:
     bool active = false;                            ///< the port is open
     uint8_t respBuf[kRespBufSize] = {};
     uint8_t rxBuf[kRxBufSize] = {};
-
-    // Log ring buffer, filled by queueLog(), emptied by drainLog()
-    char logBuf[kLogCapacity][kLogLineLength] = {};
-    int logHead = 0;                                ///< next line to write
-    int logTail = 0;                                ///< next line to print
 };
 
 #endif // MODBUS_MODBUS_RTU_H

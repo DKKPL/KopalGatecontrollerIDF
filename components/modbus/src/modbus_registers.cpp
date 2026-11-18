@@ -8,9 +8,12 @@
 #include "config/advanced_settings.h"
 #include "config/config_storage.h"
 #include "config/public_settings.h"
+#include "esp_log.h"
 #include "hal_io/hal_io.h"
 #include "modbus/modbus_rtu.h"
 #include "motor_control/time_util.h"
+
+static const char* TAG = "modbus";
 
 // The CLI prints bools like C# did.
 static const char* boolText(bool v)
@@ -130,11 +133,11 @@ void ModbusSlave::processCli()
         return;
     }
 
-    queueLog("[Modbus] CLI [%d] -> '%s'", cliCmd, cmd);
+    ESP_LOGI(TAG, "CLI [%d] -> '%s'", cliCmd, cmd);
     cliStatus = modbus::CliStatus::Pending;
     cliExecute(cmd);
     cliStatus = modbus::CliStatus::Done;
-    queueLog("[Modbus] CLI [%d] done - write 0 to reg 200 to clear", cliCmd);
+    ESP_LOGI(TAG, "CLI [%d] done - write 0 to reg 200 to clear", cliCmd);
 }
 
 const char* ModbusSlave::cliCodeToCommand(uint8_t code)
@@ -142,7 +145,7 @@ const char* ModbusSlave::cliCodeToCommand(uint8_t code)
     if (code >= static_cast<uint8_t>(modbus::CliCode::Status) && code <= static_cast<uint8_t>(modbus::CliCode::Reset)) {
         return cliCommandName(code);
     }
-    queueLog("[Modbus] Unknown CLI code: %d (valid: 1-9)", code);
+    ESP_LOGW(TAG, "Unknown CLI code: %d (valid: 1-9)", code);
     return nullptr;
 }
 
@@ -151,7 +154,7 @@ void ModbusSlave::cliExecute(const char* cmd)
 {
     if (strcmp(cmd, "status") == 0) {
         const GateStatus st = gate.getStatus();
-        queueLog("[CLI] moving=%s dir=%s locked=%s flash=%s light=%s autoclose=%s "
+        ESP_LOGI(TAG, "[CLI] moving=%s dir=%s locked=%s flash=%s light=%s autoclose=%s "
                  "lso=%s lsc=%s photo=%s safety=%s torqueLim=%s",
                  boolText(st.moving), boolText(st.actualDirectionOpening), boolText(st.locked),
                  boolText(st.flash), boolText(st.passageLight), boolText(st.autoClose),
@@ -164,20 +167,20 @@ void ModbusSlave::cliExecute(const char* cmd)
             bits[i - 1] = readInputRegister(i, st) != 0 ? '1' : '0';
         }
         bits[22] = '\0';
-        queueLog("[CLI] Peripherals 1-22: %s", bits);
+        ESP_LOGI(TAG, "[CLI] Peripherals 1-22: %s", bits);
     } else if (strcmp(cmd, "errors") == 0) {
-        queueLog("[CLI] No error log available");
+        ESP_LOGI(TAG, "[CLI] No error log available");
     } else if (strcmp(cmd, "clear") == 0) {
-        queueLog("[CLI] Error log cleared");
+        ESP_LOGI(TAG, "[CLI] Error log cleared");
     } else if (strcmp(cmd, "counters") == 0) {
         const GateStatus st = gate.getStatus();
         const int upSeconds = static_cast<int>((nowMs() - startMs) / 1000);
-        queueLog("[CLI] pulses=%" PRId64 " uptime=%ds", st.position, upSeconds);
+        ESP_LOGI(TAG, "[CLI] pulses=%" PRId64 " uptime=%ds", st.position, upSeconds);
     } else if (strcmp(cmd, "version") == 0) {
-        queueLog("[CLI] FW:%s Build:%s", modbus::kFwVersion, ConfigStorage::getFirmwareBuildStamp());
+        ESP_LOGI(TAG, "[CLI] FW:%s Build:%s", modbus::kFwVersion, ConfigStorage::getFirmwareBuildStamp());
     } else if (strcmp(cmd, "cell") == 0 || strcmp(cmd, "mqtt") == 0 || strcmp(cmd, "reset") == 0) {
-        queueLog("[CLI] '%s' not available", cmd);
+        ESP_LOGI(TAG, "[CLI] '%s' not available", cmd);
     } else {
-        queueLog("[CLI] Unknown command '%s'", cmd);
+        ESP_LOGW(TAG, "[CLI] Unknown command '%s'", cmd);
     }
 }
