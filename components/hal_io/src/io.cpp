@@ -63,3 +63,57 @@ static gpio_num_t outputPin(Output output)
     }
     return GPIO_NUM_NC;
 }
+
+void Io::begin(bool useQuadratureEncoder)
+{
+    // Controller inputs. The C# set debounce times (ms) here, which only affected
+    // ValueChanged events: LSC/LSO 5, photocell/safety edge 20, OSC/close/open 40.
+    openInput(pins::kLsc, true);           // detect gate = high
+    openInput(pins::kLso, true);           // detect gate = high
+    openInput(pins::kPhotocell, false);
+    openInput(pins::kSafetyEdge, false);
+    openInput(pins::kOsc, false);
+    openInput(pins::kClose, false);
+    openInput(pins::kOpen, false);
+    openInput(pins::kPedestrian, false);
+    openInput(pins::kAutoClose, false);
+    openInput(pins::kAuxIn, false);
+
+    // Controller outputs, all low.
+    openOutput(pins::kFlash);
+    openOutput(pins::kPassageLight);
+    openOutput(pins::kLock);
+    openOutput(pins::kAuxOut);
+    openOutput(pins::kUserLed);
+
+    // Motor driver alarm (debounce 20 ms in the C#).
+    openInput(pins::kTorqueLimit, false);
+
+    // Direction feedback; with the quadrature encoder this pin is Hall B.
+    feedbackDirection = !useQuadratureEncoder;
+    if (feedbackDirection) {
+        openInput(pins::kFeedbackDirection, false);
+    }
+
+    // Connectivity. The Wi-Fi switch needs the pull-up: floating, it reads noise,
+    // which switched Wi-Fi off and rebooted the device mid-session.
+    openInput(pins::kWifi, true);
+    openInput(pins::kReset, false);
+}
+
+bool Io::isHigh(Input input) const
+{
+    return gpio_get_level(inputPin(input)) == 1;
+}
+
+bool Io::hasFeedbackDirection() const
+{
+    return feedbackDirection;
+}
+
+void Io::write(Output output, bool high)
+{
+    gpio_set_level(outputPin(output), high ? 1 : 0);
+}
+
+
