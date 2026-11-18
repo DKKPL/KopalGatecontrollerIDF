@@ -83,3 +83,87 @@ void Motor::begin()
     openPwm(pins::kMotorTorque, kTorqueChannel);
     openPwm(pins::kMotorSpeed, kSpeedChannel);
 }
+
+void Motor::setDirection(Direction direction)
+{
+    this->direction = direction;
+    applyOutputs();
+}
+
+void Motor::setRun(bool run)
+{
+    this->run = run;
+    applyOutputs();
+}
+
+void Motor::toggleDirection()
+{
+    direction = (direction == Direction::Open) ? Direction::Close : Direction::Open;
+    applyOutputs();
+}
+
+// Drives the two driver pins according to the wiring:
+//   USE_DUAL_DIRECTION_INPUTS == false (legacy): start/stop pin = run/stop, direction pin = direction
+//   USE_DUAL_DIRECTION_INPUTS == true  (dual)  : start/stop pin = open enable, direction pin = close enable,
+//                                                break-before-make: never both high at once.
+void Motor::applyOutputs()
+{
+    // INVERT_MOTOR_DIRECTION flips the physical direction when the motor is wired or geared
+    // the other way round. Done here, the single logical -> physical point, so every caller is covered.
+    Direction effective = direction;
+    if (adv.invertMotorDirection()) {
+        effective = (direction == Direction::Open) ? Direction::Close : Direction::Open;
+    }
+    // Inputs for the motor
+    if (!adv.useDualDirectionInputs()) {
+        // Legacy behaviour, exactly as before.
+        gpio_set_level(pins::kMotorStartStop, run ? 1 : 0);
+        gpio_set_level(pins::kMotorDirection, effective == Direction::Open ? 1 : 0);
+        return;
+    }
+
+    // Dual direction-enable pins:
+    //   kMotorStartStop   kMotorDirection   Motor
+    //   low               low               stopped
+    //   high              low               runs open
+    //   low               high              runs close
+    if (!run) {
+        gpio_set_level(pins::kMotorStartStop, 0);
+        gpio_set_level(pins::kMotorDirection, 0);
+        return;
+    }
+
+    // Break-before-make with dead time: both lines low first, so there is a real
+    // off period on the hardware before the target enable line goes high.
+    gpio_set_level(pins::kMotorStartStop, 0);
+    gpio_set_level(pins::kMotorDirection, 0);
+    vTaskDelay(pdMS_TO_TICKS(5));
+
+    if (effective == Direction::Open) {
+        gpio_set_level(pins::kMotorStartStop, 1);
+    } else {
+        gpio_set_level(pins::kMotorDirection, 1);
+    }
+}
+
+void Motor::setSpeed(float duty)
+{
+    speedDuty = duty;
+    writeDuty(kSpeedChannel, duty);
+}
+
+float Motor::getSpeed() const
+{
+    return speedDuty;
+}
+
+void Motor::setTorque(float duty)
+{
+    torqueDuty = duty;
+    writeDuty(kTorqueChannel, duty);
+}
+
+float Motor::getTorque() const
+{
+    return torqueDuty;
+}
