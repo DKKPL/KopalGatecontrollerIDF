@@ -167,3 +167,22 @@ float Motor::getTorque() const
 {
     return torqueDuty;
 }
+
+void Motor::setDisabled(bool disabled)
+{
+    gpio_set_level(pins::kMotorDisable, disabled ? 1 : 0);
+}
+
+void Motor::applyUseMotorDisableSetting()
+{
+    setDisabled(adv.useMotorDisable());
+    ESP_LOGD(TAG, "applyUseMotorDisableSetting: %d", adv.useMotorDisable());
+}
+
+void Motor::enableForMovement()
+{
+    if (adv.useMotorDisable()) {
+        return;
+    }
+    setDisabled(false);
+}

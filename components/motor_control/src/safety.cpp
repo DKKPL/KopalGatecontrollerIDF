@@ -148,7 +148,7 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
 
         while (monitor.pollTorqueLimit() && tries < kMaxTries) {
             ESP_LOGD(TAG, "Still triggered, toggling motor disable/direction (try %d/%d)...", tries + 1, kMaxTries);
-            motor.setDriverDisabled(true);
+            motor.setDisabled(true);
 
             if (adv.useDualDirectionInputs()) {
                 // No independent direction pin in dual mode: pulse the run state briefly.
@@ -168,7 +168,7 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
                 sleepMs(200);
             }
 
-            motor.setDriverDisabled(false);
+            motor.setDisabled(false);
             ++tries;
         }
         if (tries == kMaxTries) {
@@ -220,7 +220,7 @@ void SafetyActions::handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted inter
     ESP_LOGD(TAG, "Safety edge: triggered -> handling once.");
 
     motor.setRun(false);
-    motor.enableDriverForMovement();
+    motor.enableForMovement();
 
     // Speed and torque for the backtrack.
     motor.setSpeed(static_cast<float>(adv.spdHiC()));

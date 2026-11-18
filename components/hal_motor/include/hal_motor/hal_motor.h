@@ -65,9 +65,9 @@ public:
     float getTorque() const;
 
     /**
-     * @brief Drive the driver's disable pin directly (was _motorDisablePinOut.Write).
+     * @brief Switch the motor off or back on with the disable pin (was _motorDisablePinOut.Write).
      */
-    void setDriverDisabled(bool disabled);
+    void setDisabled(bool disabled);
 
     /**
      * @brief Set the disable pin as the USE_MOTOR_DISABLE setting says (was ApplyUseMotorDisableSetting).
@@ -75,9 +75,10 @@ public:
     void applyUseMotorDisableSetting();
 
     /**
-     * @brief Enable the driver before a move, unless USE_MOTOR_DISABLE is on (was EnsureMotorDriverEnabledForMovement).
+     * @brief Enable the motor before a move, unless USE_MOTOR_DISABLE is on (was EnsureMotorDriverEnabledForMovement).
+     *        Called before every open/close move (GateController::startMotor) and before the safety-edge back-off.
      */
-    void enableDriverForMovement();
+    void enableForMovement();
 
 private:
     /**
