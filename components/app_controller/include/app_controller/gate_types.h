@@ -72,7 +72,6 @@ enum class GateCommand : uint8_t {
     Pedestrian,       ///< _remoteCmdPedestrian -> latched Pedestrian
     ToggleAutoClose,  ///< _remoteCmdAutoclose  -> toggle auto-close
     ApplySettings,    ///< web saved the settings: re-apply USE_MOTOR_DISABLE (was Program.ApplyUseMotorDisableSetting)
-    MotorOff,         ///< wifi before a reboot: motor run low, speed and torque 0 (was DisableWifi)
 };
 
 /**
