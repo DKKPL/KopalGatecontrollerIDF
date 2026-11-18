@@ -234,3 +234,32 @@ bool ConfigStorage::saveStopCount(uint32_t count)
     }
     return true;
 }
+
+void ConfigStorage::loadAll(PublicSettings& pub, AdvancedSettings& adv, TeachSettings& teach)
+{
+    if (!loadPublic(pub)) {
+        pub.setValues(PublicValues());
+        savePublic(pub);
+    }
+
+    ESP_LOGD(TAG, "[CONFIG] Loaded PublicSettings: AutoRedirectEnabled=%d", pub.getAutoRedirectEnabled());
+
+    if (!loadAdvanced(adv)) {
+        adv.resetToDefaults();
+        saveAdvanced(adv);
+    }
+
+    ESP_LOGD(TAG, "[CONFIG] Loaded persisted AdvancedSettings: USE_QUADRATURE_ENCODER=%d, "
+             "INVERT_ENCODER_COUNT=%d, USE_DUAL_DIRECTION_INPUTS=%d",
+             adv.getUseQuadratureEncoder(), adv.getInvertEncoderCount(), adv.getUseDualDirectionInputs());
+
+    if (!loadTeach(teach)) {
+        teach.setValues(TeachValues());
+        saveTeach(teach);
+    }
+}
+
+const char* ConfigStorage::getFirmwareBuildStamp()
+{
+    return kFirmwareBuildStamp;
+}
