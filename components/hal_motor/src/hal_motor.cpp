@@ -60,3 +60,26 @@ static void writeDuty(ledc_channel_t channel, float duty)
 Motor::Motor(const AdvancedSettings& adv) : adv(adv)
 {
 }
+
+void Motor::begin()
+{
+    // Driver disable pin, as the USE_MOTOR_DISABLE setting says.
+    openOutput(pins::kMotorDisable);
+    applyUseMotorDisableSetting();
+
+    // Run/stop and direction pins (open and close enable with the dual wiring), both low.
+    openOutput(pins::kMotorStartStop);
+    openOutput(pins::kMotorDirection);
+
+    // One 16 kHz timer for the torque and speed PWM.
+    ledc_timer_config_t timer = {};
+    timer.speed_mode = LEDC_LOW_SPEED_MODE;
+    timer.duty_resolution = kPwmResolution;
+    timer.timer_num = LEDC_TIMER_0;
+    timer.freq_hz = kPwmFrequencyHz;
+    timer.clk_cfg = LEDC_AUTO_CLK;
+    ESP_ERROR_CHECK(ledc_timer_config(&timer));
+
+    openPwm(pins::kMotorTorque, kTorqueChannel);
+    openPwm(pins::kMotorSpeed, kSpeedChannel);
+}
