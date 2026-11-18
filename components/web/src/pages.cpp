@@ -416,3 +416,59 @@ void pages::writeTrace(const PartSink& s, const AdvancedSettings& adv, const Tea
 
     trace.write(s);
 }
+
+bool pages::readPublicForm(const std::string& formData, PublicValues& v)
+{
+    return readForm(formData, kPublicFields, v);
+}
+
+// Last value of key in the form data (a hidden field and its checkbox send the same key twice).
+// A key without '=' counts as present with value "". false when the key is not there (C#: null).
+static bool getFormValue(const std::string& data, const char* key, std::string& value)
+{
+    bool found = false;
+    std::string k;
+    std::string v;
+    size_t pos = 0;
+    while (nextPair(data, pos, k, v)) {
+        if (k.empty() || k != key) {
+            continue;
+        }
+        value = v;
+        found = true;
+    }
+    return found;
+}
+
+void pages::readAdvancedForm(const std::string& formData, AdvancedValues& v)
+{
+    std::string setRaw;
+    const bool hasSet = getFormValue(formData, "Terminus", setRaw);
+    ESP_LOGI(TAG, ">>> parameter set: %s", hasSet ? setRaw.c_str() : "[null]");
+
+    // Only change the model here. Its defaults are applied after the form values are read.
+    const ParameterSet previousSet = v.parameterSet;
+    for (const ParameterSet set : kParameterSets) {
+        if (hasSet && setRaw == toString(set)) {
+            v.parameterSet = set;
+        }
+    }
+    ESP_LOGI(TAG, "Before: PARAMETER_SET = %s", toString(v.parameterSet));
+
+    // Set all checkboxes to false first (unchecked checkboxes are not sent in POST).
+    for (const FormField<AdvancedValues>& f : kAdvancedFields) {
+        if (f.kind == FieldKind::Check || f.kind == FieldKind::CheckHidden) {
+            v.*std::get<bool AdvancedValues::*>(f.setting) = false;
+        }
+    }
+
+    // An invalid number is ignored and keeps its old value (C#: "Ignore invalid input for now").
+    readForm(formData, kAdvancedFields, v);
+
+    // If the mode changed, re-apply the selected defaults so they are not overwritten
+    if (previousSet != v.parameterSet) {
+        ESP_LOGI(TAG, "Mode changed -> reapplying defaults for %s", toString(v.parameterSet));
+        applyFactoryDefaults(v.parameterSet, v);
+    }
+    ESP_LOGI(TAG, "After: PARAMETER_SET = %s", toString(v.parameterSet));
+}
