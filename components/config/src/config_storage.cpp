@@ -106,3 +106,90 @@ void ConfigStorage::eraseKey(const char* key)
         ESP_LOGW(TAG, "Deleting %s failed: %s", key, esp_err_to_name(err));
     }
 }
+
+void ConfigStorage::clearPublic()
+{
+    eraseKey(kKeyPublic);
+}
+
+void ConfigStorage::clearAdvanced()
+{
+    eraseKey(kKeyAdvanced);
+    eraseKey(kKeyStopCount);
+}
+
+void ConfigStorage::clearTeach()
+{
+    eraseKey(kKeyTeach);
+}
+
+bool ConfigStorage::loadPublic(PublicSettings& pub)
+{
+    PublicValues values;
+    if (!readBlob(kKeyPublic, &values, sizeof(values))) {
+        return false;
+    }
+    pub.setValues(values);
+    return true;
+}
+
+bool ConfigStorage::loadAdvanced(AdvancedSettings& adv)
+{
+    AdvancedValues values;
+    if (!readBlob(kKeyAdvanced, &values, sizeof(values))) {
+        return false;
+    }
+    adv.setValues(values);
+
+    uint32_t count = 0;
+    if (nvs_get_u32(handle, kKeyStopCount, &count) == ESP_OK) {
+        adv.setStopCount(count);
+    }
+    return true;
+}
+
+bool ConfigStorage::loadTeach(TeachSettings& teach)
+{
+    TeachValues values;
+    if (!readBlob(kKeyTeach, &values, sizeof(values))) {
+        return false;
+    }
+    teach.setValues(values);
+    return true;
+}
+
+bool ConfigStorage::savePublic(const PublicSettings& pub)
+{
+    const PublicValues values = pub.getValues();
+    return writeBlob(kKeyPublic, &values, sizeof(values));
+}
+
+bool ConfigStorage::saveAdvanced(const AdvancedSettings& adv)
+{
+    const AdvancedValues values = adv.getValues();
+    const bool ok = writeBlob(kKeyAdvanced, &values, sizeof(values));
+    return saveStopCount(adv.getStopCount()) && ok;
+}
+
+bool ConfigStorage::saveTeach(const TeachSettings& teach)
+{
+    const TeachValues values = teach.getValues();
+    return writeBlob(kKeyTeach, &values, sizeof(values));
+}
+
+bool ConfigStorage::saveStopCount(uint32_t count)
+{
+    if (!ready) {
+        ESP_LOGE(TAG, "Saving %s failed: NVS not started", kKeyStopCount);
+        return false;
+    }
+    esp_err_t err = nvs_set_u32(handle, kKeyStopCount, count);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Saving %s failed: %s", kKeyStopCount, esp_err_to_name(err));
+        return false;
+    }
+    return true;
+}
