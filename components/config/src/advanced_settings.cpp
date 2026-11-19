@@ -417,14 +417,14 @@ void AdvancedSettings::setUnlckTime(int ms)
     write(values.unlckTime, ms);
 }
 
-int AdvancedSettings::getOpsLimit() const
+int AdvancedSettings::getMaxRunTime() const
 {
-    return read(values.opsLimit);
+    return read(values.maxRunTime);
 }
 
-void AdvancedSettings::setOpsLimit(int seconds)
+void AdvancedSettings::setMaxRunTime(int seconds)
 {
-    write(values.opsLimit, seconds);
+    write(values.maxRunTime, seconds);
 }
 
 bool AdvancedSettings::getSimOpenEnabled() const

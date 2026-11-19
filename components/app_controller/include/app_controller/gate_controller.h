@@ -61,7 +61,7 @@ public:
      */
     void setCompleteCloseHandler(std::function<void()> handler);
     /**
-     * @brief Function to call at the start of every entryPoint() (wifi reads the Wi-Fi switch there).
+     * @brief Function to call at every (re)start of the state machine in run() (wifi reads the Wi-Fi switch there).
      */
     void setEntryPointHandler(std::function<void()> handler);
 
@@ -77,14 +77,10 @@ private:
      */
     static void taskEntry(void* arg);
     /**
-     * @brief The gate task: check the reset button once, then call entryPoint() forever.
+     * @brief The gate task: check the reset button once, then forever teach or find the position
+     *        and run normalOperation(), again after each ops-limit restart (was Main + EntryPoint).
      */
     void run();
-    /**
-     * @brief One start of the state machine: teach or find the position, then run normalOperation()
-     *        (was EntryPoint).
-     */
-    void entryPoint();
     /**
      * @brief The 10 ms loop: read inputs, handle safeties, run the current state
      *        (was State_NormalOperation).
@@ -152,9 +148,9 @@ private:
      */
     void setMotorSpeed();
     /**
-     * @brief Restart the state machine when a movement takes longer than OpsLimt (was CheckOpsLimitReached).
+     * @brief Restart the state machine when a movement takes longer than the max run time (was CheckOpsLimitReached).
      */
-    void checkOpsLimitReached();
+    void checkMaxRunTimeExceeded();
     /**
      * @brief Read the encoder: update the position and/or the RPM, stop at the pedestrian position
      *        (was UpdatePositionAndRpm).

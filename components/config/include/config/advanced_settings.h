@@ -70,7 +70,7 @@ struct AdvancedValues {
     int unlckTime = 1000;                 ///< ms (was UNLCK_TIME)
 
     // Limits and duration test
-    int opsLimit = 180;            ///< max run time in s (was OpsLimt)
+    int maxRunTime = 180;          ///< max run time of one movement in s (was OpsLimt)
     bool simOpenEnabled = false;   ///< duration test: open again after fully closed (was SIM_OPEN_ENABLED)
     int simOpenDelayS = 300;       ///< s after fully closed, 0 = at once (was SIM_OPEN_DELAY_S)
 };
@@ -461,13 +461,13 @@ public:
 
     // Limits and duration test
     /**
-     * @brief Max run time in seconds (was OpsLimt).
+     * @brief Max run time of one movement in seconds (was OpsLimt).
      */
-    int getOpsLimit() const;
+    int getMaxRunTime() const;
     /**
-     * @brief Set OpsLimt.
+     * @brief Set the max run time (was OpsLimt).
      */
-    void setOpsLimit(int seconds);
+    void setMaxRunTime(int seconds);
     /**
      * @brief Duration test: open again after fully closed (was SIM_OPEN_ENABLED).
      */

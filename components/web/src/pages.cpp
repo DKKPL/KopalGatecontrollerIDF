@@ -229,7 +229,7 @@ static constexpr FormField<AdvancedValues> kAdvancedFields[] = {
     { "IdleLockTimeout (s)", "GateIdleLockTimeoutSeconds", FieldKind::Number, &AdvancedValues::gateIdleLockTimeoutSeconds, "0", "500", "1" },
     { "PulsesPerMeter", "PulsesPerMeter", FieldKind::Number, &AdvancedValues::pulsesPerMeter },
     { "EncPulsesPerRotation", "EncoderPulsesPerRotation", FieldKind::Number, &AdvancedValues::encPpr, "1", "100", "1.0" },
-    { "OpsLimt (s)", "OpsLimt", FieldKind::Number, &AdvancedValues::opsLimit },
+    { "OpsLimt (s)", "OpsLimt", FieldKind::Number, &AdvancedValues::maxRunTime },
     { "SafetyWaitTime (s)", "SafetyWaitTime", FieldKind::Number, &AdvancedValues::safetyEdgeWaitTime },
     { "SPD_TCH", "SPD_TCH", FieldKind::Number, &AdvancedValues::spdTch, "0", "1", "0.01" },
     { "SPD_EXT_FORCE", "SPD_EXT_FORCE", FieldKind::Number, &AdvancedValues::spdExtForce, "0", "1", "0.01" },
