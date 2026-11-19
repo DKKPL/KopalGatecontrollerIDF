@@ -222,3 +222,428 @@ void GateController::normalOperation()
         sleepMs(kPollIntervalMs);
     }
 }
+
+void GateController::setMainLoopStep(MainLoopStep newStep, const char* reason)
+{
+    if (step != newStep) {
+        ESP_LOGD(TAG, "State: %s | Reason: %s", toString(newStep), reason);
+        step = newStep;
+    }
+}
+
+// Which movement the current safety step interrupted (for the backtrack direction).
+Interrupted GateController::interruptedMovement() const
+{
+    switch (step) {
+    case MainLoopStep::SafetyOpenAfterOpening:
+    case MainLoopStep::SafetyOpenCloseAfterOpening:
+        return Interrupted::Opening;
+    case MainLoopStep::SafetyCloseAfterClosing:
+    case MainLoopStep::SafetyOpenCloseAfterClosing:
+        return Interrupted::Closing;
+    default:
+        return Interrupted::Unknown;
+    }
+}
+
+void GateController::stateClosing()
+{
+    // 1. Safety transition: exit immediately if triggered
+    if (!safety.closeOk()) {
+        ESP_LOGD(TAG, "Safety triggered: SF_C()");
+
+        if (atPedestrianPosition && checkPedestrianZone()) {
+            commands.pedestrianPressed = true;
+            atPedestrianPosition = false;
+        }
+        setMainLoopStep(MainLoopStep::SafetyCloseAfterClosing, "Safety triggered during closing");
+        return;
+    } else if (!safety.edgeOk()) {
+        ESP_LOGD(TAG, "Safety triggered: SF_O_C()");
+        setMainLoopStep(MainLoopStep::SafetyOpenCloseAfterClosing, "Safety triggered during closing");
+        return;
+    }
+
+    // 2. Stop/limit transition: exit immediately if triggered
+    if (commands.latchedOsc || commands.openPressed || lscActivated) {
+        ESP_LOGD(TAG, "Stop/limit triggered");
+        commands.openPressed = false;
+        commands.latchedOsc = false;
+        if (lscActivated) {
+            position = 0;
+        }
+        setMainLoopStep(MainLoopStep::ClosingNormalStop, "Stop/limit triggered during closing");
+        adv.increaseStopCount();
+        stopCountSaved = false;
+        return;
+    }
+
+    // 3. Normal closing operation
+    if (completeOpen && !io.isHigh(Input::Lso)) {
+        completeOpen = false;
+        lsoActivated = false;
+        teach.setPosA(teach.getPosO());
+        position = teach.getPosO();
+    }
+
+    // Pedestrian: always stop at the pedestrian opening
+    if (pedestrianMode) {
+        const int64_t distanceToPedes = position - pedestrianPulses();
+        if (distanceToPedes <= 0) {
+            pedestrianMode = false;
+            atPedestrianPosition = true;
+            setMainLoopStep(MainLoopStep::ClosingNormalStop, "Pedestrian hold: reached pedestrian opening");
+            return;
+        }
+    }
+
+    // 4. Set motor speed and start closing
+    startMotor(Direction::Close);
+    setMotorSpeed();
+
+    // 5. Pedestrian mode handling
+    if (commands.pedestrianPressed) {
+        switch (checkPedestrianDirection()) {
+        case 1:    // close gate to pedestrian
+            pedestrianMode = true;
+            commands.pedestrianPressed = false;
+            setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing");
+            break;
+        case 0:    // close gate completely
+            commands.pedestrianPressed = false;
+            setMainLoopStep(MainLoopStep::ClosingNormalStop, "Pedestrian mode closing complete");
+            break;
+        case -1:   // open gate to pedestrian (pedestrianPressed stays set, as in C#)
+            pedestrianMode = true;
+            setMainLoopStep(MainLoopStep::ClosingNormalStop, "Pedestrian mode opening");
+            break;
+        }
+    }
+}
+
+void GateController::stateClosingNormalStop()
+{
+    stopMotor();
+
+    // Stop any ramp and reset the torque retry counter
+    ramp.clear();
+    torqueRetryCounter = 0;
+
+    // Post-teach and pedestrian hold
+    if (closeAfterTeach && commands.pedestrianHold && !commands.autoClose) {
+        commands.pedestrianPressed = true;
+    }
+    closeAfterTeach = false;
+
+    completeClose = lscActivatedLatched && !moving;
+
+    if (completeClose) {
+        justClosed = true;
+        if (onCompleteClose) {
+            onCompleteClose();   // wifi: switch off after 5 min (was in this function)
+        }
+    }
+
+    if (lscActivated && completeClose) {
+        // LSC reached: stop and clear the torque alarm, then handle buttons below
+        motor.setRun(false);
+        motor.setSpeed(0.0f);
+        safetyActions.resetTorqueLimitIfTriggered(false, interruptedMovement(), actualDirectionOpening);
+    } else if (!lscActivated && completeClose) {
+        // Marked complete but LSC not reached: push with extra force
+        motor.setSpeed(static_cast<float>(adv.getSpdExtForce()));
+        motor.setTorque(adv.getTqOps());
+        motor.setDirection(Direction::Close);
+        motor.setRun(true);
+        ESP_LOGD(TAG, "[EXTRA FORCE] SPD_EXT_FORCE: %.2f", adv.getSpdExtForce());
+        safetyActions.resetTorqueLimitIfTriggered(false, interruptedMovement(), actualDirectionOpening);
+        return;
+    }
+
+    // Wait for the motor to stop
+    while (updatePositionAndRpm(true, false) > 0) {
+        pollAndLatchInputCommands();
+        sleepMs(kPollIntervalMs);
+    }
+
+    passageLightOffAfterMotorStop();
+
+    // Save the stop counter if it changed
+    if (!stopCountSaved) {
+        stopCountSaved = true;
+        store.saveStopCount(adv.getStopCount());
+    }
+
+    isLsoActivated();
+
+    // Duration test: simulate an open command after the gate is completely closed
+    if (adv.getSimOpenEnabled() && completeClose) {
+        if (simOpenClosedSinceMs < 0) {
+            simOpenClosedSinceMs = nowMs();
+        }
+        if (secondsSince(simOpenClosedSinceMs) >= adv.getSimOpenDelayS()) {
+            simOpenClosedSinceMs = -1;
+            pedestrianMode = false;
+            atPedestrianPosition = false;
+            commands.latchedOpen = false;
+            commands.openPressed = false;
+            commands.latchedOsc = false;   // open wins, drop any pending OSC
+            setMainLoopStep(MainLoopStep::Opening, "Simulated open command (duration test)");
+            return;
+        }
+    } else {
+        simOpenClosedSinceMs = -1;
+    }
+
+    // Auto-close
+    if (commands.autoClose && (checkPedestrianDirection() == 0 || lsoActivated) &&
+        secondsSince(lastStopMs) > pub.getAutoCloseDelay()) {
+        if (commands.pedestrianHold) {
+            return;   // no auto-close while pedestrian is held
+        }
+        commands.latchedOsc = false;
+        setMainLoopStep(MainLoopStep::Closing, "Auto-close triggered");
+        return;
+    }
+
+    // Buttons (priority: Open, Close, OSC, Pedestrian)
+    if (commands.latchedOpen || commands.openPressed) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedOpen = false;
+        commands.openPressed = false;
+
+        if (!lsoActivated) {   // only if the gate is not fully open
+            commands.latchedOsc = false;   // new movement starts: drop pending OSC
+            if (checkPedestrianDirection() == -1 && commands.pedestrianHold) {
+                pedestrianMode = true;
+            }
+            setMainLoopStep(MainLoopStep::Opening, "Open button pressed (latched or direct)");
+        }
+        return;
+    }
+
+    isLscActivated();
+
+    if (commands.latchedClose || commands.closePressed) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedClose = false;
+        commands.closePressed = false;
+
+        if (!completeClose && !lscActivated) {   // only if the gate is not fully closed
+            commands.latchedOsc = false;
+            if (checkPedestrianDirection() == 1 && commands.pedestrianHold) {
+                pedestrianMode = true;
+            }
+            setMainLoopStep(MainLoopStep::Closing, "Close button pressed (latched or direct)");
+        }
+        return;
+    }
+
+    if (commands.latchedOsc) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedOsc = false;
+
+        const int pedDir = checkPedestrianDirection();
+        if ((pedDir == -1 || pedDir == 1) && commands.pedestrianHold) {
+            pedestrianMode = true;
+        }
+        setMainLoopStep(MainLoopStep::Opening, "OSC button pressed (latched)");
+        return;
+    }
+
+    if (commands.latchedPedestrian || commands.pedestrianPressed) {
+        commands.latchedPedestrian = false;
+        commands.pedestrianPressed = false;
+        commands.latchedOsc = false;
+
+        switch (checkPedestrianDirection()) {
+        case 1:  pedestrianMode = true;  setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing"); break;
+        case 0:  pedestrianMode = false; setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing complete"); break;
+        case -1: pedestrianMode = true;  setMainLoopStep(MainLoopStep::Opening, "Pedestrian mode opening"); break;
+        }
+        return;
+    }
+
+    updatePedestrianMode();
+}
+
+void GateController::stateOpening()
+{
+    // 1. Safety transition: exit immediately if triggered
+    if (!safety.openOk()) {
+        ESP_LOGD(TAG, "Safety triggered: SF_O()");
+        setMainLoopStep(MainLoopStep::SafetyOpenAfterOpening, "Safety triggered during opening");
+        return;
+    } else if (!safety.edgeOk()) {
+        ESP_LOGD(TAG, "Safety triggered: SF_O_C()");
+        setMainLoopStep(MainLoopStep::SafetyOpenCloseAfterOpening, "Safety triggered during opening");
+        return;
+    }
+
+    // 2. Stop/limit transition: exit immediately if triggered
+    if (commands.latchedOsc || commands.closePressed || lsoActivated) {
+        ESP_LOGD(TAG, "Stop/limit triggered");
+        commands.closePressed = false;
+        commands.latchedOsc = false;
+        pedestrianMode = false;
+        setMainLoopStep(MainLoopStep::OpeningNormalStop, "Stop/limit triggered during opening");
+        return;
+    }
+
+    // 3. Normal opening operation
+    if (completeClose && !io.isHigh(Input::Lsc)) {
+        completeClose = false;
+        lscActivated = false;
+        teach.setPosA(0);
+        position = 0;
+    }
+
+    // Pedestrian: always stop at the pedestrian opening
+    if (pedestrianMode) {
+        const int64_t distanceToPedes = position - pedestrianPulses();
+        if (distanceToPedes >= 0) {
+            pedestrianMode = false;
+            atPedestrianPosition = true;
+            setMainLoopStep(MainLoopStep::OpeningNormalStop, "Pedestrian hold: reached pedestrian opening");
+            return;
+        }
+    }
+
+    // 4. Set motor speed and start opening
+    startMotor(Direction::Open);
+    setMotorSpeed();
+
+    // 5. Pedestrian mode handling
+    if (commands.pedestrianPressed) {
+        switch (checkPedestrianDirection()) {
+        case 1:    // close gate to pedestrian
+            pedestrianMode = true;
+            commands.pedestrianPressed = false;
+            setMainLoopStep(MainLoopStep::OpeningNormalStop, "Pedestrian mode closing");
+            break;
+        case 0:    // close gate completely
+            commands.pedestrianPressed = false;
+            setMainLoopStep(MainLoopStep::OpeningNormalStop, "Pedestrian mode closing complete");
+            break;
+        case -1:   // open gate to pedestrian
+            pedestrianMode = true;
+            commands.pedestrianPressed = false;
+            setMainLoopStep(MainLoopStep::Opening, "Pedestrian mode opening");
+            break;
+        }
+    }
+}
+
+void GateController::stateOpeningNormalStop()
+{
+    stopMotor();
+
+    ramp.clear();
+    torqueRetryCounter = 0;
+
+    completeOpen = lsoActivatedLatched && !moving;
+
+    if (lsoActivated && completeOpen) {
+        // LSO reached: stop and clear the torque alarm, then handle buttons below
+        motor.setRun(false);
+        motor.setSpeed(0.0f);
+        safetyActions.resetTorqueLimitIfTriggered(false, interruptedMovement(), actualDirectionOpening);
+    } else if (!lsoActivated && completeOpen) {
+        // Marked complete but LSO not reached: push with extra force
+        motor.setSpeed(static_cast<float>(adv.getSpdExtForce()));
+        motor.setTorque(adv.getTqOps());
+        motor.setDirection(Direction::Open);
+        motor.setRun(true);
+        ESP_LOGD(TAG, "[EXTRA FORCE] SPD_EXT_FORCE: %.2f", adv.getSpdExtForce());
+        safetyActions.resetTorqueLimitIfTriggered(false, interruptedMovement(), actualDirectionOpening);
+        return;
+    }
+
+    // Wait for the motor to stop
+    while (updatePositionAndRpm(true, false) > 0) {
+        pollAndLatchInputCommands();
+        sleepMs(kPollIntervalMs);
+    }
+
+    passageLightOffAfterMotorStop();
+
+    if (!stopCountSaved) {
+        stopCountSaved = true;
+        store.saveStopCount(adv.getStopCount());
+    }
+
+    isLsoActivated();
+
+    // Auto-close
+    if (commands.autoClose && (checkPedestrianDirection() == 0 || lsoActivated) &&
+        secondsSince(lastStopMs) > pub.getAutoCloseDelay() &&
+        !commands.openPressed && !commands.latchedOpen) {
+        if (commands.pedestrianHold) {
+            return;
+        }
+        commands.latchedOsc = false;
+        setMainLoopStep(MainLoopStep::Closing, "Auto-close triggered");
+        return;
+    }
+
+    if (commands.latchedOpen || commands.openPressed) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedOpen = false;
+        commands.openPressed = false;
+
+        if (!lsoActivated) {
+            commands.latchedOsc = false;
+            if (checkPedestrianDirection() == -1 && commands.pedestrianHold) {
+                pedestrianMode = true;
+            }
+            setMainLoopStep(MainLoopStep::Opening, "Open button pressed (latched or direct)");
+        }
+        return;
+    }
+
+    if (commands.latchedClose || commands.closePressed) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedClose = false;
+        commands.closePressed = false;
+        commands.latchedOsc = false;   // close wins, drop any pending OSC
+
+        if (checkPedestrianDirection() == 1 && commands.pedestrianHold) {
+            pedestrianMode = true;
+        }
+        setMainLoopStep(MainLoopStep::Closing, "Close button pressed (latched or direct)");
+        return;
+    }
+
+    if (commands.latchedOsc) {
+        pedestrianMode = false;
+        atPedestrianPosition = false;
+        commands.latchedOsc = false;
+
+        const int pedDir = checkPedestrianDirection();
+        if ((pedDir == -1 || pedDir == 1) && commands.pedestrianHold) {
+            pedestrianMode = true;
+        }
+        setMainLoopStep(MainLoopStep::Closing, "OSC button pressed (latched)");
+        return;
+    }
+
+    if (commands.latchedPedestrian || commands.pedestrianPressed) {
+        commands.latchedPedestrian = false;
+        commands.pedestrianPressed = false;
+        commands.latchedOsc = false;
+
+        switch (checkPedestrianDirection()) {
+        case 1:  pedestrianMode = true;  setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing"); break;
+        case 0:  pedestrianMode = false; setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing complete"); break;
+        case -1: pedestrianMode = true;  setMainLoopStep(MainLoopStep::Opening, "Pedestrian mode opening"); break;
+        }
+        return;
+    }
+
+    updatePedestrianMode();
+}
