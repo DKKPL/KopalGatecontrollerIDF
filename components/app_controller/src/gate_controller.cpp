@@ -971,6 +971,66 @@ void GateController::setMotorSpeed()
     lastMotorSpeedStep = step;   // lets the next call see whether a close just started
 }
 
+int GateController::updatePositionAndRpm(bool updateRpm, bool updatePosition)
+{
+    // Created on first use, like the C# null check (quadrature: Hall A + B, else Hall A only).
+    if (!counter.isStarted()) {
+        counter.begin(adv.getUseQuadratureEncoder());
+    }
+
+    // pulseCounter.Reset(): read the count and set it back to 0.
+    const int32_t actualCount = counter.takeCount();
+
+    const int64_t now = nowMs();
+    if (updateRpm) {
+        const int64_t dtMs = now - lastUpdateMs;
+        if (dtMs > 0) {
+            const float rotationsPerMs = static_cast<float>(actualCount) / adv.getEncPpr() / static_cast<float>(dtMs);
+            rpm = std::fabs(rotationsPerMs * 60.0f * 1000.0f);
+        }
+    }
+    lastUpdateMs = now;
+
+    if (updatePosition) {
+        if (adv.getUseQuadratureEncoder()) {
+            // Signed count: positive = opening, negative = closing.
+            const int64_t delta = adv.getInvertEncoderCount() ? -actualCount : actualCount;
+            position += delta;
+
+            // Keep the direction in sync (no feedback pin in quadrature mode).
+            if (delta > 0) {
+                actualDirectionOpening = true;
+            } else if (delta < 0) {
+                actualDirectionOpening = false;
+            }
+        } else {
+            // Single pulse: direction comes from the feedback pin.
+            const bool effectiveDirection = actualDirectionOpening ^ adv.getInvertEncoderCount();
+            if (!effectiveDirection) {
+                position += actualCount;
+            } else {
+                position -= actualCount;
+            }
+        }
+    }
+
+    if (pedestrianMode) {
+        const int64_t distanceToPedes = position - pedestrianPulses();
+        if (step == MainLoopStep::Closing && distanceToPedes <= 0) {
+            pedestrianMode = false;
+            atPedestrianPosition = true;
+            setMainLoopStep(MainLoopStep::ClosingNormalStop, "Pedestrian mode closing reached");
+        } else if (step == MainLoopStep::Opening && distanceToPedes >= 0) {
+            pedestrianMode = false;
+            atPedestrianPosition = true;
+            setMainLoopStep(MainLoopStep::OpeningNormalStop, "Pedestrian mode opening reached");
+        }
+    }
+
+    checkMaxRunTimeExceeded();
+    return static_cast<int>(rpm);
+}
+
 bool GateController::isLsoActivated()
 {
     const bool activated = io.isHigh(Input::Lso);
