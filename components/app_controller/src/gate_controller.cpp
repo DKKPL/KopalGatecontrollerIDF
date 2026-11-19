@@ -993,9 +993,46 @@ bool GateController::isLscActivated()
     return lscActivated = activated;
 }
 
+// _PublicSettings.PedestrianModeDistancePulse
+int64_t GateController::pedestrianPulses() const
+{
+    return pub.getPedestrianModeDistancePulse(adv.getPulsesPerMeter());
+}
+
+// 1 = close to the pedestrian position, -1 = open to it, 0 = already there (within the margin).
+int GateController::checkPedestrianDirection() const
+{
+    const int64_t distanceToPedes = position - pedestrianPulses();
+    const double margin = adv.getPedesPosMarginPulses();
+
+    if (distanceToPedes > 0 && distanceToPedes - margin > 0) {
+        return 1;
+    }
+    if (distanceToPedes < 0 && distanceToPedes + margin < 0) {
+        return -1;
+    }
+    return 0;
+}
+
 // Between closed and the pedestrian position (plus margin).
 bool GateController::checkPedestrianZone() const
 {
     const double upperBound = pedestrianPulses() + adv.getPedesPosMarginPulses();
     return position >= 0 && position <= upperBound;
+}
+
+bool GateController::isInPedestrianArea() const
+{
+    const int64_t distance = position - pedestrianPulses();
+    const double margin = adv.getPedesPosMarginPulses();
+    return distance >= -margin && distance <= margin;
+}
+
+void GateController::updatePedestrianMode()
+{
+    if (isInPedestrianArea()) {
+        pedestrianMode = false;
+    } else if (commands.pedestrianHold) {
+        pedestrianMode = true;
+    }
 }
