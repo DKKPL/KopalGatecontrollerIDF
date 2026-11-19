@@ -647,3 +647,165 @@ void GateController::stateOpeningNormalStop()
 
     updatePedestrianMode();
 }
+
+void GateController::stateSafetyCloseAfterClosing()
+{
+    stopMotor();
+    ramp.clear();
+
+    if (safety.pollTorqueLimit()) {
+        ++torqueRetryCounter;
+        ESP_LOGD(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
+
+        // Always perform the reset/backtrack, even on the last retry
+        safetyActions.resetTorqueLimitIfTriggered(adv.getBtAftTqLmt(), interruptedMovement(), actualDirectionOpening);
+
+        if (torqueRetryCounter > adv.getTorqueRetryMaxCount()) {
+            ESP_LOGD(TAG, "Safety retry max reached. Stopping further retries.");
+            setMainLoopStep(MainLoopStep::ClosingNormalStop, "Retry max reached in safety close after closing");
+        }
+        return;
+    }
+
+    if (!adv.getWaitScDc()) {
+        if (atPedestrianPosition && commands.pedestrianHold) {
+            pedestrianMode = true;   // keep pedestrian mode for the resumed opening
+        }
+        setMainLoopStep(MainLoopStep::Opening, "Safety close after closing interrupt");
+    } else if (adv.getSafetyResume()) {
+        waitForAllSafetiesOkAndLatchInputs();
+        setMainLoopStep(MainLoopStep::Closing, "Safety close after closing resume");
+    } else {
+        waitForAllSafetiesOkAndLatchInputs();
+        setMainLoopStep(MainLoopStep::ClosingNormalStop, "Safety close after closing normal stop");
+    }
+}
+
+void GateController::stateSafetyOpenAfterOpening()
+{
+    stopMotor();
+    ramp.clear();
+
+    if (safety.pollTorqueLimit()) {
+        ++torqueRetryCounter;
+        ESP_LOGD(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
+
+        safetyActions.resetTorqueLimitIfTriggered(adv.getBtAftTqLmt(), interruptedMovement(), actualDirectionOpening);
+
+        if (torqueRetryCounter > adv.getTorqueRetryMaxCount()) {
+            ESP_LOGD(TAG, "Safety retry max reached. Stopping further retries.");
+            setMainLoopStep(MainLoopStep::OpeningNormalStop, "Retry max reached in safety open after opening");
+        }
+        return;
+    }
+
+    if (!adv.getWaitSoDo()) {
+        setMainLoopStep(MainLoopStep::Closing, "Safety open after opening interrupt");
+    } else if (adv.getSafetyResume()) {
+        waitForAllSafetiesOkAndLatchInputs();
+        setMainLoopStep(MainLoopStep::Opening, "Safety open after opening resume");
+    } else {
+        waitForAllSafetiesOkAndLatchInputs();
+        setMainLoopStep(MainLoopStep::OpeningNormalStop, "Safety open after opening normal stop");
+    }
+}
+
+void GateController::stateSafetyOpenCloseAfterClosing()
+{
+    stopMotor(true);
+    ramp.clear();
+
+    waitForAllSafetiesOkAndLatchInputs();
+
+    // Latched commands first
+    if (commands.latchedOpen || commands.openPressed) {
+        atPedestrianPosition = false;
+        commands.latchedOpen = false;
+        commands.openPressed = false;
+        setMainLoopStep(MainLoopStep::Opening, "Open button pressed after safety");
+        return;
+    }
+    if (commands.latchedClose || commands.closePressed) {
+        atPedestrianPosition = false;
+        commands.latchedClose = false;
+        commands.closePressed = false;
+        setMainLoopStep(MainLoopStep::Closing, "Close button pressed after safety");
+        return;
+    }
+    if (commands.latchedOsc) {
+        atPedestrianPosition = false;
+        commands.latchedOsc = false;
+        setMainLoopStep(MainLoopStep::Opening, "OSC button pressed after safety");
+        return;
+    }
+    if (commands.latchedPedestrian || commands.pedestrianPressed) {
+        atPedestrianPosition = false;
+        commands.latchedPedestrian = false;
+        commands.pedestrianPressed = false;
+        switch (checkPedestrianDirection()) {
+        case 1:  pedestrianMode = true;  setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing after safety"); break;
+        case 0:  pedestrianMode = false; setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing complete after safety"); break;
+        case -1: pedestrianMode = true;  setMainLoopStep(MainLoopStep::Opening, "Pedestrian mode opening after safety"); break;
+        }
+        return;
+    }
+
+    // No command latched: resume as configured
+    if (!adv.getWaitSocDc()) {
+        setMainLoopStep(MainLoopStep::Opening, "Safety open close after closing interrupt");
+    } else if (adv.getSafetyResume()) {
+        setMainLoopStep(MainLoopStep::Closing, "Safety open close after closing resume");
+    } else {
+        setMainLoopStep(MainLoopStep::ClosingNormalStop, "Safety open close after closing normal stop");
+    }
+}
+
+void GateController::stateSafetyOpenCloseAfterOpening()
+{
+    stopMotor(true);
+    ramp.clear();
+
+    waitForAllSafetiesOkAndLatchInputs();
+
+    // Latched commands first
+    if (commands.latchedOpen || commands.openPressed) {
+        atPedestrianPosition = false;
+        commands.latchedOpen = false;
+        commands.openPressed = false;
+        setMainLoopStep(MainLoopStep::Opening, "Open button pressed after safety");
+        return;
+    }
+    if (commands.latchedClose || commands.closePressed) {
+        atPedestrianPosition = false;
+        commands.latchedClose = false;
+        commands.closePressed = false;
+        setMainLoopStep(MainLoopStep::Closing, "Close button pressed after safety");
+        return;
+    }
+    if (commands.latchedOsc) {
+        atPedestrianPosition = false;
+        commands.latchedOsc = false;
+        setMainLoopStep(MainLoopStep::Opening, "OSC button pressed after safety");
+        return;
+    }
+    if (commands.latchedPedestrian || commands.pedestrianPressed) {
+        atPedestrianPosition = false;
+        commands.latchedPedestrian = false;
+        commands.pedestrianPressed = false;
+        switch (checkPedestrianDirection()) {
+        case 1:  pedestrianMode = true;  setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing after safety"); break;
+        case 0:  pedestrianMode = false; setMainLoopStep(MainLoopStep::Closing, "Pedestrian mode closing complete after safety"); break;
+        case -1: pedestrianMode = true;  setMainLoopStep(MainLoopStep::Opening, "Pedestrian mode opening after safety"); break;
+        }
+        return;
+    }
+
+    // No command latched: resume as configured
+    if (!adv.getWaitSocDo()) {
+        setMainLoopStep(MainLoopStep::Closing, "Safety open close after opening interrupt");
+    } else if (adv.getSafetyResume()) {
+        setMainLoopStep(MainLoopStep::Opening, "Safety open close after opening resume");
+    } else {
+        setMainLoopStep(MainLoopStep::OpeningNormalStop, "Safety open close after opening normal stop");
+    }
+}
