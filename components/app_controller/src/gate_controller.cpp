@@ -899,3 +899,103 @@ void GateController::checkMaxRunTimeExceeded()
         skipHomingOnNextEntry = true;
     }
 }
+
+void GateController::setMotorSpeed()
+{
+    switch (step) {
+    case MainLoopStep::Teach:
+        // Teach / homing: slow teach speed and the low safety torque.
+        motor.setSpeed(static_cast<float>(adv.getSpdTch()));
+        motor.setTorque(adv.getTqSfty());
+        break;
+
+    case MainLoopStep::Opening:
+        // Near the end (APP_O pulses before fully open, or before the pedestrian position): slow down.
+        // Otherwise: ramp up to the fast opening speed.
+        if (position >= teach.getPosO() - adv.getAppOPulses() ||
+            (pedestrianMode && position >= pedestrianPulses() - adv.getAppOPulses())) {
+            if (!loggedLowSpeedOpening) {
+                loggedLowSpeedOpening = true;
+                ESP_LOGD(TAG, "[SPEED] Opening low speed activated: counterTotal=%lld, APP_O_Pulses=%d, POS_O=%lld",
+                         static_cast<long long>(position), adv.getAppOPulses(),
+                         static_cast<long long>(teach.getPosO()));
+            }
+            ramp.tryStartDown(adv.getSpdLoO(), adv.getDecO());
+        } else {
+            ramp.tryStartUp(adv.getSpdHiO(), adv.getAccO());
+        }
+        motor.setTorque(adv.getTqOps());   // opening always uses normal torque
+        break;
+
+    case MainLoopStep::Closing:
+        // Near the end (APP_C pulses before fully closed, or before the pedestrian position): slow down.
+        // Otherwise: ramp up to the fast closing speed.
+        if (position <= adv.getAppCPulses() ||
+            (pedestrianMode && position <= pedestrianPulses() + adv.getAppCPulses())) {
+            if (!loggedLowSpeedClosing) {
+                loggedLowSpeedClosing = true;
+                ESP_LOGD(TAG, "[SPEED] Closing low speed activated: counterTotal=%lld, APP_C_Pulses=%d",
+                         static_cast<long long>(position), adv.getAppCPulses());
+            }
+            ramp.tryStartDown(adv.getSpdLoC(), adv.getDecC());
+        } else {
+            ramp.tryStartUp(adv.getSpdHiC(), adv.getAccC());
+        }
+
+        // Torque safety zone near closed (between TQ_STFY_ZONE_STOP and _STRT): low torque, so the gate pushes softly.
+        if (position <= adv.getTqSftyZoneStrtPulses() && position >= adv.getTqSftyZoneStopPulses()) {
+            if (lastMotorSpeedStep != MainLoopStep::Closing) {
+                // The close starts inside the zone: normal torque for 1.5 s to get the gate moving.
+                motor.setTorque(adv.getTqOps());
+                safetyZoneStartMs = nowMs();   // sftyZoneStopWatch.Restart()
+            } else if (safetyZoneStartMs >= 0 && nowMs() - safetyZoneStartMs <= 1500) {
+                // Still within those 1.5 s: keep normal torque.
+                motor.setTorque(adv.getTqOps());
+            } else {
+                // Entered the zone while moving, or the 1.5 s are over: low safety torque.
+                motor.setTorque(adv.getTqSfty());
+                safetyZoneStartMs = -1;        // Stop() + Reset()
+            }
+        } else {
+            motor.setTorque(adv.getTqOps());   // outside the zone: normal torque
+        }
+        break;
+
+    default:
+        // Any other step: fixed slow speed and the low safety torque.
+        motor.setSpeed(0.41176f);
+        motor.setTorque(adv.getTqSfty());
+        break;
+    }
+
+    lastMotorSpeedStep = step;   // lets the next call see whether a close just started
+}
+
+bool GateController::isLsoActivated()
+{
+    const bool activated = io.isHigh(Input::Lso);
+    if (activated) {
+        lsoActivatedLatched = true;
+        if (teach.getPosO() > 0) {
+            position = teach.getPosO();
+        }
+    }
+    return lsoActivated = activated;
+}
+
+bool GateController::isLscActivated()
+{
+    const bool activated = io.isHigh(Input::Lsc);
+    if (activated) {
+        lscActivatedLatched = true;
+        position = 0;
+    }
+    return lscActivated = activated;
+}
+
+// Between closed and the pedestrian position (plus margin).
+bool GateController::checkPedestrianZone() const
+{
+    const double upperBound = pedestrianPulses() + adv.getPedesPosMarginPulses();
+    return position >= 0 && position <= upperBound;
+}
