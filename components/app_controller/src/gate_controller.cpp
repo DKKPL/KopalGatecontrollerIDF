@@ -1036,3 +1036,85 @@ void GateController::updatePedestrianMode()
         pedestrianMode = true;
     }
 }
+
+void GateController::pollSafetyInputs()
+{
+    safety.pollPhotocell();
+    safety.pollSafetyEdge();
+    safetyActions.resetTorqueLimitIfTriggered(true, interruptedMovement(), actualDirectionOpening);   // no-op when not triggered
+    safety.pollTorqueLimit();
+}
+
+// False when a safety tripped and was waited out (the motor is restarted in `direction`).
+bool GateController::ensureSafetyAndResume(Direction direction)
+{
+    // Status check only: no torque recovery while the motor may still be moving.
+    safety.pollPhotocell();
+    safety.pollSafetyEdge();
+    safety.pollTorqueLimit();
+
+    if (safety.allOk()) {
+        return true;
+    }
+
+    stopMotor();
+    while (!safety.allOk()) {
+        sleepMs(kPollIntervalMs);
+        pollSafetyInputs();
+    }
+    ESP_LOGD(TAG, "Safety cleared, starting motor.");
+    startMotor(direction);
+    return false;
+}
+
+void GateController::waitForAllSafetiesOkAndLatchInputs()
+{
+    commands.clearLatches();
+
+    // Initial poll
+    commands.pollOsc();
+    commands.pollOpen();
+    commands.pollClose();
+    commands.pollPedestrian();
+
+    while (!safety.allOk()) {
+        sleepMs(kPollIntervalMs);
+        pollAndLatchInputCommands();   // keep latching buttons and remote commands
+        pollSafetyInputs();
+    }
+}
+
+void GateController::pollAndLatchInputCommands()
+{
+    commands.pollOsc();
+    if (commands.pollOpen()) {
+        commands.latchedOpen = true;
+    }
+    if (commands.pollClose()) {
+        commands.latchedClose = true;
+    }
+    commands.pollPedestrian();
+    if (commands.pedestrianPressed) {
+        commands.latchedPedestrian = true;
+    }
+
+    drainCommands();   // was PollRemoteCommands()
+    publishStatus();
+}
+
+// Lock after the idle timeout, or straight away when fully closed.
+void GateController::engageLockAfterMotorStop()
+{
+    if ((secondsSince(lastStopMs) > adv.getGateIdleLockTimeoutSeconds() && !moving) ||
+        (step == MainLoopStep::ClosingNormalStop && completeClose)) {
+        outputs.engageLock();
+    }
+}
+
+void GateController::passageLightOffAfterMotorStop()
+{
+    if (outputs.isPassageLightOn() && !moving &&
+        (secondsSince(lastStopMs) > pub.getPassageLightDelay() || completeClose)) {
+        outputs.passageLightOff();
+    }
+}
