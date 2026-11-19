@@ -809,3 +809,93 @@ void GateController::stateSafetyOpenCloseAfterOpening()
         setMainLoopStep(MainLoopStep::OpeningNormalStop, "Safety open close after opening normal stop");
     }
 }
+
+void GateController::startMotor(Direction direction)
+{
+    motor.enableForMovement();   // EnsureMotorDriverEnabledForMovement()
+
+    lscActivatedLatched = false;
+    lsoActivatedLatched = false;
+
+    // 1. Do nothing if already moving
+    if (moving) {
+        return;
+    }
+
+    ramp.clear();   // every movement starts from a clean ramp
+    trace.reset();
+
+    loggedLowSpeedClosing = false;
+    loggedLowSpeedOpening = false;
+
+    // 3. Passage light on
+    if (!outputs.isPassageLightOn()) {
+        outputs.passageLightOn();
+    }
+
+    // 4. Unlock if needed
+    if (outputs.isLocked()) {
+        ESP_LOGD(TAG, "[StartMotor] Lock is engaged, unlocking...");
+
+        const bool preWarning = secondsSince(lastStopMs) > adv.getGateIdleLockTimeoutSeconds() || justClosed;
+        outputs.disengageLock(preWarning ? pub.getBeaconPreWarningTime() * 1000 : 0);
+        if (preWarning) {
+            justClosed = false;
+        }
+
+        // Unlock movement: briefly drive in the close direction to free the solenoid
+        if (direction == Direction::Open && adv.getSolenoidMagnet()) {
+            ESP_LOGD(TAG, "[StartMotor] Performing unlock movement.");
+            motor.setSpeed(static_cast<float>(adv.getSpdUnlck()));
+            motor.setTorque(adv.getTqOps());
+            motor.setDirection(Direction::Close);
+            motor.setRun(true);
+            sleepMs(adv.getUnlckMoveTime());
+        }
+    }
+
+    // 5. Requested direction
+    motor.setDirection(direction);
+
+    // 6. Start the motor
+    setMotorSpeed();
+    motor.setRun(true);
+    ESP_LOGD(TAG, "Motor started.");
+
+    // 7. State and timestamps
+    lastStartMs = nowMs();
+    moving = true;
+}
+
+void GateController::stopMotor(bool forceStop)
+{
+    // Always drop the ramp, even when not moving.
+    ramp.clear();
+
+    if (!moving) {
+        return;
+    }
+
+    motor.setRun(false);
+    motor.setSpeed(0.0f);
+    motor.setTorque(adv.getTqSfty());
+    lastStopMs = nowMs();
+    moving = false;
+
+    if (forceStop) {
+        motor.toggleDirection();
+        ESP_LOGD(TAG, "Force stop executed");
+    } else {
+        ESP_LOGD(TAG, "Normal stop executed");
+    }
+}
+
+// Movement took longer than the max run time: restart the state machine (skip re-homing).
+void GateController::checkMaxRunTimeExceeded()
+{
+    if (moving && secondsSince(lastStartMs) > adv.getMaxRunTime()) {
+        ESP_LOGD(TAG, "[DEBUG] Max run time reached, requesting restart (no recursive EntryPoint call)");
+        restartRequested = true;
+        skipHomingOnNextEntry = true;
+    }
+}
