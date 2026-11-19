@@ -1,3 +1,8 @@
 # 1 ms FreeRTOS tick: motor_control waits in steps shorter than 10 ms
 # (e.g. the 5 ms motor dead-time); at the default 100 Hz vTaskDelay cannot go below 10 ms.
 CONFIG_FREERTOS_HZ=1000
+
+# Modbus RS485 uses GPIO 19/20, which are also the USB pins: no USB-Serial-JTAG console there.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+CONFIG_USJ_ENABLE_USB_SERIAL_JTAG=n
