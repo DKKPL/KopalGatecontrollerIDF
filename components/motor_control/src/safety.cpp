@@ -109,6 +109,20 @@ void SafetyMonitor::stopEdgeClearTimer()
     edgeOkSinceMs = -1;
 }
 
+void SafetyActions::setWaitHandler(std::function<void()> handler)
+{
+    onWait = std::move(handler);
+}
+
+// New: the C# Modbus read the gate's variables directly; now the gate refreshes its status first.
+void SafetyActions::wait(int ms)
+{
+    if (onWait) {
+        onWait();
+    }
+    sleepMs(ms);
+}
+
 // Backtrack means "move opposite to the interrupted movement".
 Direction SafetyActions::determineBacktrackDirection(Interrupted interrupted, bool movingOpen) const
 {
@@ -137,10 +151,10 @@ Direction SafetyActions::applyBacktrackDirection(Interrupted interrupted, bool m
 
     // The caller handles motor enable / torque.
     motor.setDirection(backtrack);
-    ESP_LOGD(TAG, "Applied backtrack direction: %s", backtrack == Direction::Open ? "Open" : "Close");
+    ESP_LOGI(TAG, "Applied backtrack direction: %s", backtrack == Direction::Open ? "Open" : "Close");
 
     if (postWriteDelayMs > 0) {
-        sleepMs(postWriteDelayMs);
+        wait(postWriteDelayMs);
     }
     return backtrack;
 }
@@ -156,13 +170,13 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
 
     while (monitor.pollTorqueLimit() && overallAttempts < kOverallMaxAttempts) {
         ++overallAttempts;
-        ESP_LOGD(TAG, "Torque limit triggered. Reset attempt %d/%d.", overallAttempts, kOverallMaxAttempts);
+        ESP_LOGI(TAG, "Torque limit triggered. Reset attempt %d/%d.", overallAttempts, kOverallMaxAttempts);
 
         constexpr int kMaxTries = 20;
         int tries = 0;
 
         while (monitor.pollTorqueLimit() && tries < kMaxTries) {
-            ESP_LOGD(TAG, "Still triggered, toggling motor disable/direction (try %d/%d)...", tries + 1, kMaxTries);
+            ESP_LOGI(TAG, "Still triggered, toggling motor disable/direction (try %d/%d)...", tries + 1, kMaxTries);
             motor.setDisabled(true);
 
             if (adv.getUseDualDirectionInputs()) {
@@ -170,24 +184,24 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
                 // The driver is disabled, so this cannot cause real movement.
                 motor.setDirection(Direction::Open);
                 motor.setRun(false);
-                sleepMs(200);
+                wait(200);
                 motor.setDirection(Direction::Close);
                 motor.setRun(true);
-                sleepMs(200);
+                wait(200);
                 motor.setDirection(Direction::Close);
                 motor.setRun(false);
             } else {
                 motor.setDirection(Direction::Open);
-                sleepMs(200);
+                wait(200);
                 motor.setDirection(Direction::Close);
-                sleepMs(200);
+                wait(200);
             }
 
             motor.setDisabled(false);
             ++tries;
         }
         if (tries == kMaxTries) {
-            ESP_LOGD(TAG, "Torque limit did not reset after max tries. Giving up.");
+            ESP_LOGI(TAG, "Torque limit did not reset after max tries. Giving up.");
         }
 
         // Make sure the motor is stopped before changing direction.
@@ -199,22 +213,22 @@ void SafetyActions::resetTorqueLimitIfTriggered(bool doBacktrack, Interrupted in
         applyBacktrackDirection(interrupted, movingOpen);
 
         if (io.isHigh(Input::TorqueLimit)) {
-            ESP_LOGD(TAG, "Torque limit still triggered after reset. Not backtracking.");
+            ESP_LOGI(TAG, "Torque limit still triggered after reset. Not backtracking.");
             continue;
         }
         if (doBacktrack) {
-            ESP_LOGD(TAG, "Backtrack...");
+            ESP_LOGI(TAG, "Backtrack...");
             motor.setRun(true);
-            sleepMs(adv.getBtTime());
+            wait(adv.getBtTime());
             motor.setRun(false);
         }
     }
 
     if (monitor.pollTorqueLimit()) {
-        ESP_LOGD(TAG, "Torque limit persists after attempts. Entering fault/abort state.");
+        ESP_LOGI(TAG, "Torque limit persists after attempts. Entering fault/abort state.");
     }
 
-    sleepMs(kPollIntervalMs);
+    wait(kPollIntervalMs);
 }
 
 // Call after monitor.pollSafetyEdge() in the same poll cycle.
@@ -222,7 +236,7 @@ void SafetyActions::handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted inter
 {
     if (!monitor.isSafetyEdgeTriggered()) {
         if (safetyEdgeHandled) {
-            ESP_LOGD(TAG, "Safety edge cleared, handler reset.");
+            ESP_LOGI(TAG, "Safety edge cleared, handler reset.");
         }
         safetyEdgeHandled = false;
         return;
@@ -232,7 +246,7 @@ void SafetyActions::handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted inter
     }
 
     safetyEdgeHandled = true;
-    ESP_LOGD(TAG, "Safety edge: triggered -> handling once.");
+    ESP_LOGI(TAG, "Safety edge: triggered -> handling once.");
 
     motor.setRun(false);
     motor.enableForMovement();
@@ -244,9 +258,9 @@ void SafetyActions::handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted inter
     applyBacktrackDirection(interrupted, movingOpen);
 
     if (doBacktrack) {
-        ESP_LOGD(TAG, "Backtrack: pulsing start...");
+        ESP_LOGI(TAG, "Backtrack: pulsing start...");
         motor.setRun(true);
-        sleepMs(adv.getBtTime());
+        wait(adv.getBtTime());
         motor.setRun(false);
     }
 }

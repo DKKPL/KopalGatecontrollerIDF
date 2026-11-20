@@ -33,6 +33,11 @@ void GateOutputs::engageLock()
     flash = false;
 }
 
+void GateOutputs::setWaitHandler(std::function<void()> handler)
+{
+    onWait = std::move(handler);
+}
+
 void GateOutputs::disengageLock(int preWarningMs)
 {
     // Solenoid: energize (High) to unlock. Magnet: de-energize (Low) to unlock.
@@ -45,6 +50,9 @@ void GateOutputs::disengageLock(int preWarningMs)
     }
 
     // Pre-warning before the gate moves (caller decides if it is needed).
+    if (preWarningMs > 0 && onWait) {
+        onWait();   // new: Modbus sees the beacon during the wait (C# read bFlash directly)
+    }
     sleepMs(preWarningMs);
 
     locked = false;

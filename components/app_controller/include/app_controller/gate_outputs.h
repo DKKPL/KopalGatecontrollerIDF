@@ -1,6 +1,8 @@
 #ifndef APP_CONTROLLER_GATE_OUTPUTS_H
 #define APP_CONTROLLER_GATE_OUTPUTS_H
 
+#include <functional>
+
 class Io;
 class AdvancedSettings;
 
@@ -22,6 +24,10 @@ public:
      * @brief Unlock the gate and switch the beacon on, then wait preWarningMs before returning (0 = no wait).
      */
     void disengageLock(int preWarningMs);
+    /**
+     * @brief Called just before the pre-warning wait, so the gate can publish its status (new).
+     */
+    void setWaitHandler(std::function<void()> handler);
     /**
      * @brief Switch the passage light on.
      */
@@ -50,6 +56,7 @@ private:
     bool locked = true;         ///< bLocked
     bool passageLight = false;  ///< bPassageLight
     bool flash = false;         ///< bFlash
+    std::function<void()> onWait;  ///< set by GateController: refresh the Modbus status before waiting
 };
 
 #endif // APP_CONTROLLER_GATE_OUTPUTS_H

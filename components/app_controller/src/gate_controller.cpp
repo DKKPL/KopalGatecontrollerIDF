@@ -21,6 +21,9 @@ GateController::GateController(Io& io, Motor& motor, Counter& counter,
       safety(io, adv), safetyActions(motor, io, safety, adv), commands(io), outputs(io, adv),
       ramp(motor), teachSeq(*this)
 {
+    // New: blocking waits in these parts refresh the status first, so Modbus sees the outputs change.
+    outputs.setWaitHandler([this] { publishStatus(); });
+    safetyActions.setWaitHandler([this] { publishStatus(); });
 }
 
 void GateController::drainCommands()
@@ -119,7 +122,7 @@ void GateController::run()
     while (true) {
         restartRequested = false;
 
-        ESP_LOGD(TAG, "TeachPhase: %s", toString(teachSeq.getPhase()));
+        ESP_LOGI(TAG, "TeachPhase: %s", toString(teachSeq.getPhase()));
 
         if (onEntryPoint) {
             onEntryPoint();   // wifi: read the Wi-Fi switch (was PollWifiButton())
@@ -127,7 +130,7 @@ void GateController::run()
 
         if (skipHomingOnNextEntry) {
             skipHomingOnNextEntry = false;
-            ESP_LOGD(TAG, "Max run time restart: stopping motor before resuming (skipping teach/re-homing).");
+            ESP_LOGI(TAG, "Max run time restart: stopping motor before resuming (skipping teach/re-homing).");
             stopMotor();
 
             if (step == MainLoopStep::Opening) {
@@ -226,7 +229,7 @@ void GateController::normalOperation()
 void GateController::setMainLoopStep(MainLoopStep newStep, const char* reason)
 {
     if (step != newStep) {
-        ESP_LOGD(TAG, "State: %s | Reason: %s", toString(newStep), reason);
+        ESP_LOGI(TAG, "State: %s | Reason: %s", toString(newStep), reason);
         step = newStep;
     }
 }
@@ -250,7 +253,7 @@ void GateController::stateClosing()
 {
     // 1. Safety transition: exit immediately if triggered
     if (!safety.closeOk()) {
-        ESP_LOGD(TAG, "Safety triggered: SF_C()");
+        ESP_LOGI(TAG, "Safety triggered: SF_C()");
 
         if (atPedestrianPosition && checkPedestrianZone()) {
             commands.pedestrianPressed = true;
@@ -259,14 +262,14 @@ void GateController::stateClosing()
         setMainLoopStep(MainLoopStep::SafetyCloseAfterClosing, "Safety triggered during closing");
         return;
     } else if (!safety.edgeOk()) {
-        ESP_LOGD(TAG, "Safety triggered: SF_O_C()");
+        ESP_LOGI(TAG, "Safety triggered: SF_O_C()");
         setMainLoopStep(MainLoopStep::SafetyOpenCloseAfterClosing, "Safety triggered during closing");
         return;
     }
 
     // 2. Stop/limit transition: exit immediately if triggered
     if (commands.latchedOsc || commands.openPressed || lscActivated) {
-        ESP_LOGD(TAG, "Stop/limit triggered");
+        ESP_LOGI(TAG, "Stop/limit triggered");
         commands.openPressed = false;
         commands.latchedOsc = false;
         if (lscActivated) {
@@ -474,18 +477,18 @@ void GateController::stateOpening()
 {
     // 1. Safety transition: exit immediately if triggered
     if (!safety.openOk()) {
-        ESP_LOGD(TAG, "Safety triggered: SF_O()");
+        ESP_LOGI(TAG, "Safety triggered: SF_O()");
         setMainLoopStep(MainLoopStep::SafetyOpenAfterOpening, "Safety triggered during opening");
         return;
     } else if (!safety.edgeOk()) {
-        ESP_LOGD(TAG, "Safety triggered: SF_O_C()");
+        ESP_LOGI(TAG, "Safety triggered: SF_O_C()");
         setMainLoopStep(MainLoopStep::SafetyOpenCloseAfterOpening, "Safety triggered during opening");
         return;
     }
 
     // 2. Stop/limit transition: exit immediately if triggered
     if (commands.latchedOsc || commands.closePressed || lsoActivated) {
-        ESP_LOGD(TAG, "Stop/limit triggered");
+        ESP_LOGI(TAG, "Stop/limit triggered");
         commands.closePressed = false;
         commands.latchedOsc = false;
         pedestrianMode = false;
@@ -655,13 +658,13 @@ void GateController::stateSafetyCloseAfterClosing()
 
     if (safety.pollTorqueLimit()) {
         ++torqueRetryCounter;
-        ESP_LOGD(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
+        ESP_LOGI(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
 
         // Always perform the reset/backtrack, even on the last retry
         safetyActions.resetTorqueLimitIfTriggered(adv.getBtAftTqLmt(), interruptedMovement(), actualDirectionOpening);
 
         if (torqueRetryCounter > adv.getTorqueRetryMaxCount()) {
-            ESP_LOGD(TAG, "Safety retry max reached. Stopping further retries.");
+            ESP_LOGI(TAG, "Safety retry max reached. Stopping further retries.");
             setMainLoopStep(MainLoopStep::ClosingNormalStop, "Retry max reached in safety close after closing");
         }
         return;
@@ -688,12 +691,12 @@ void GateController::stateSafetyOpenAfterOpening()
 
     if (safety.pollTorqueLimit()) {
         ++torqueRetryCounter;
-        ESP_LOGD(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
+        ESP_LOGI(TAG, "Safety retry count: %d/%d", torqueRetryCounter, adv.getTorqueRetryMaxCount());
 
         safetyActions.resetTorqueLimitIfTriggered(adv.getBtAftTqLmt(), interruptedMovement(), actualDirectionOpening);
 
         if (torqueRetryCounter > adv.getTorqueRetryMaxCount()) {
-            ESP_LOGD(TAG, "Safety retry max reached. Stopping further retries.");
+            ESP_LOGI(TAG, "Safety retry max reached. Stopping further retries.");
             setMainLoopStep(MainLoopStep::OpeningNormalStop, "Retry max reached in safety open after opening");
         }
         return;
@@ -835,7 +838,7 @@ void GateController::startMotor(Direction direction)
 
     // 4. Unlock if needed
     if (outputs.isLocked()) {
-        ESP_LOGD(TAG, "[StartMotor] Lock is engaged, unlocking...");
+        ESP_LOGI(TAG, "[StartMotor] Lock is engaged, unlocking...");
 
         const bool preWarning = secondsSince(lastStopMs) > adv.getGateIdleLockTimeoutSeconds() || justClosed;
         outputs.disengageLock(preWarning ? pub.getBeaconPreWarningTime() * 1000 : 0);
@@ -845,11 +848,12 @@ void GateController::startMotor(Direction direction)
 
         // Unlock movement: briefly drive in the close direction to free the solenoid
         if (direction == Direction::Open && adv.getSolenoidMagnet()) {
-            ESP_LOGD(TAG, "[StartMotor] Performing unlock movement.");
+            ESP_LOGI(TAG, "[StartMotor] Performing unlock movement.");
             motor.setSpeed(static_cast<float>(adv.getSpdUnlck()));
             motor.setTorque(adv.getTqOps());
             motor.setDirection(Direction::Close);
             motor.setRun(true);
+            publishStatus();   // new: keep the Modbus status current during the wait
             sleepMs(adv.getUnlckMoveTime());
         }
     }
@@ -860,7 +864,7 @@ void GateController::startMotor(Direction direction)
     // 6. Start the motor
     setMotorSpeed();
     motor.setRun(true);
-    ESP_LOGD(TAG, "Motor started.");
+    ESP_LOGI(TAG, "Motor started.");
 
     // 7. State and timestamps
     lastStartMs = nowMs();
@@ -884,9 +888,9 @@ void GateController::stopMotor(bool forceStop)
 
     if (forceStop) {
         motor.toggleDirection();
-        ESP_LOGD(TAG, "Force stop executed");
+        ESP_LOGI(TAG, "Force stop executed");
     } else {
-        ESP_LOGD(TAG, "Normal stop executed");
+        ESP_LOGI(TAG, "Normal stop executed");
     }
 }
 
@@ -894,7 +898,7 @@ void GateController::stopMotor(bool forceStop)
 void GateController::checkMaxRunTimeExceeded()
 {
     if (moving && secondsSince(lastStartMs) > adv.getMaxRunTime()) {
-        ESP_LOGD(TAG, "[DEBUG] Max run time reached, requesting restart (no recursive EntryPoint call)");
+        ESP_LOGI(TAG, "[DEBUG] Max run time reached, requesting restart (no recursive EntryPoint call)");
         restartRequested = true;
         skipHomingOnNextEntry = true;
     }
@@ -916,7 +920,7 @@ void GateController::setMotorSpeed()
             (pedestrianMode && position >= pedestrianPulses() - adv.getAppOPulses())) {
             if (!loggedLowSpeedOpening) {
                 loggedLowSpeedOpening = true;
-                ESP_LOGD(TAG, "[SPEED] Opening low speed activated: counterTotal=%lld, APP_O_Pulses=%d, POS_O=%lld",
+                ESP_LOGI(TAG, "[SPEED] Opening low speed activated: counterTotal=%lld, APP_O_Pulses=%d, POS_O=%lld",
                          static_cast<long long>(position), adv.getAppOPulses(),
                          static_cast<long long>(teach.getPosO()));
             }
@@ -934,7 +938,7 @@ void GateController::setMotorSpeed()
             (pedestrianMode && position <= pedestrianPulses() + adv.getAppCPulses())) {
             if (!loggedLowSpeedClosing) {
                 loggedLowSpeedClosing = true;
-                ESP_LOGD(TAG, "[SPEED] Closing low speed activated: counterTotal=%lld, APP_C_Pulses=%d",
+                ESP_LOGI(TAG, "[SPEED] Closing low speed activated: counterTotal=%lld, APP_C_Pulses=%d",
                          static_cast<long long>(position), adv.getAppCPulses());
             }
             ramp.tryStartDown(adv.getSpdLoC(), adv.getDecC());
@@ -1119,10 +1123,11 @@ bool GateController::ensureSafetyAndResume(Direction direction)
 
     stopMotor();
     while (!safety.allOk()) {
+        publishStatus();   // new: keep the Modbus status current during the wait
         sleepMs(kPollIntervalMs);
         pollSafetyInputs();
     }
-    ESP_LOGD(TAG, "Safety cleared, starting motor.");
+    ESP_LOGI(TAG, "Safety cleared, starting motor.");
     startMotor(direction);
     return false;
 }

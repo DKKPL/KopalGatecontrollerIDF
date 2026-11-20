@@ -2,6 +2,7 @@
 #define MOTOR_CONTROL_SAFETY_H
 
 #include <cstdint>
+#include <functional>
 
 class Io;
 class Motor;
@@ -119,13 +120,23 @@ public:
      * @brief Once per safety-edge press: stop the motor and, when doBacktrack is true, back off for BT_TIME.
      */
     void handleSafetyEdgeIfNeeded(bool doBacktrack, Interrupted interrupted, bool movingOpen);
+    /**
+     * @brief Called before every wait in the actions above, so the gate can publish its status (new).
+     */
+    void setWaitHandler(std::function<void()> handler);
 
 private:
+    /**
+     * @brief Call the wait handler, then sleep ms (new; was Sleep).
+     */
+    void wait(int ms);
+
     Motor& motor;
     const Io& io;
     SafetyMonitor& monitor;
     const AdvancedSettings& adv;
     bool safetyEdgeHandled = false;  ///< this press was already handled
+    std::function<void()> onWait;    ///< set by GateController: refresh the Modbus status before waiting
 };
 
 #endif // MOTOR_CONTROL_SAFETY_H

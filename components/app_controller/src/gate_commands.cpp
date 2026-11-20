@@ -16,7 +16,7 @@ void GateCommands::pollOsc()
         // Latch on falling edge.
         if (lastOscHigh && !high) {
             latchedOsc = true;
-            ESP_LOGD(TAG, "OSC latched");
+            ESP_LOGI(TAG, "OSC latched");
         }
     }
     lastOscHigh = high;

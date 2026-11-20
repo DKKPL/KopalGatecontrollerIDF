@@ -30,7 +30,7 @@ void TeachSequence::run()
     // Already taught: skip the teach steps.
     if (g.teach.getPosO() > 0) {
         phase = TeachPhase::Done;
-        ESP_LOGD(TAG, "Teach already completed. Skipping teach steps.");
+        ESP_LOGI(TAG, "Teach already completed. Skipping teach steps.");
         reestablishGatePosition();
         return;
     }
@@ -47,6 +47,7 @@ void TeachSequence::run()
         if (!g.safety.allOk()) {
             g.stopMotor();
             while (!g.safety.allOk()) {
+                g.publishStatus();   // new: keep the Modbus status current
                 sleepMs(kPollIntervalMs);
                 g.pollSafetyInputs();
             }
@@ -78,6 +79,7 @@ void TeachSequence::run()
                 if (!g.lscActivated && !g.moving) {
                     g.startMotor(Direction::Close);
                 }
+                g.publishStatus();   // new: keep the Modbus status current
                 sleepMs(kPollIntervalMs);
             }
             break;
@@ -102,6 +104,7 @@ void TeachSequence::run()
                     g.lsoActivated = false;
                     break;
                 }
+                g.publishStatus();   // new: keep the Modbus status current
                 sleepMs(kPollIntervalMs);
             }
             break;
@@ -110,7 +113,7 @@ void TeachSequence::run()
             g.teach.setPosO(g.position);
             g.teach.setPosA(g.position);
             g.store.saveTeach(g.teach);
-            ESP_LOGD(TAG, "Teaching complete. POS_O = %lld", static_cast<long long>(g.teach.getPosO()));
+            ESP_LOGI(TAG, "Teaching complete. POS_O = %lld", static_cast<long long>(g.teach.getPosO()));
             phase = TeachPhase::Done;
             break;
 
@@ -133,16 +136,16 @@ void TeachSequence::reestablishGatePosition()
 
     if (atOpen) {
         g.position = g.teach.getPosO();
-        ESP_LOGD(TAG, "Gate detected at open limit. Setting counterTotal = POS_O.");
+        ESP_LOGI(TAG, "Gate detected at open limit. Setting counterTotal = POS_O.");
         g.setMainLoopStep(MainLoopStep::Closing, "Closing after power-up");
     } else if (atClose) {
         g.position = 0;
-        ESP_LOGD(TAG, "Gate detected at close limit. Setting counterTotal = 0.");
+        ESP_LOGI(TAG, "Gate detected at close limit. Setting counterTotal = 0.");
         g.setMainLoopStep(MainLoopStep::ClosingNormalStop, "Position close after power-up");
         g.closeAfterTeach = true;
     } else {
         // Unknown position: close to LSC with all safeties active (blocks until there).
-        ESP_LOGD(TAG, "Gate position unknown. Closing to LSC for safe re-homing.");
+        ESP_LOGI(TAG, "Gate position unknown. Closing to LSC for safe re-homing.");
         while (!g.isLscActivated()) {
             if (!g.ensureSafetyAndResume(Direction::Close)) {
                 continue;
@@ -150,11 +153,12 @@ void TeachSequence::reestablishGatePosition()
             if (!g.isLscActivated() && !g.moving) {
                 g.startMotor(Direction::Close);
             }
+            g.publishStatus();   // new: keep the Modbus status current
             sleepMs(kPollIntervalMs);
         }
         g.stopMotor();
         g.position = 0;
-        ESP_LOGD(TAG, "Homing complete. Gate at close limit.");
+        ESP_LOGI(TAG, "Homing complete. Gate at close limit.");
         g.closeAfterTeach = true;
         g.setMainLoopStep(MainLoopStep::ClosingNormalStop, "Homing complete, at close limit");
     }
