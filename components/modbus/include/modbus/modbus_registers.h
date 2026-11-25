@@ -11,7 +11,8 @@
 //
 // FC05 writes 0xFF00 = momentary button press, 0x0000 does nothing; FC01 always reads 0.
 // FC02 reads input registers 1-22 as bits.
-// FC03 reads 100 raw, 101-111 like FC04, and 200 as the last CLI code.
+// FC03 reads back what FC06 writes (official holding registers): 100 raw, 120-126, and 200
+// as the last CLI code; 101-111 read like FC04.
 // CLI (output goes to the log): FC06 write the code to 200, FC04 poll 200 until it
 // reads 2 (done), FC06 write 0 to 200 to acknowledge.
 
@@ -84,7 +85,7 @@ enum class Register : uint16_t {
     FwMinor = 103,               ///< firmware version minor
     ReservedFirst = 104,         ///< 104-111 reserved (formerly IMEI), read 0
     ReservedLast = 111,          ///< last reserved address
-    // Public settings, FC04 reads and FC06 writes the same units
+    // Public settings, FC03/FC04 read and FC06 writes the same units
     AutoCloseDelay = 120,        ///< s
     PedestrianDistance = 121,    ///< cm (stored as m)
     PassageLightDelay = 122,     ///< s

@@ -72,7 +72,7 @@ private:
      */
     void handleReadDiscreteInputs(const uint8_t* req, int reqLen);
     /**
-     * @brief FC03: identification, test register, last CLI code (was ModbusHandleReadHoldingRegisters).
+     * @brief FC03: read back what FC06 writes, plus identification (was ModbusHandleReadHoldingRegisters).
      */
     void handleReadHoldingRegisters(const uint8_t* req, int reqLen);
     /**
