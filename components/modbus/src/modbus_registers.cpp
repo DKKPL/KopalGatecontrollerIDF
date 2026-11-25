@@ -37,7 +37,7 @@ static uint16_t parseFwMinor()
 }
 
 // FC04 input register: 1-22 peripherals, 100-126 identification and settings, 200 CLI status.
-uint16_t ModbusSlave::readInputRegister(int addr, const GateStatus& st)
+int ModbusSlave::readInputRegister(int addr, const GateStatus& st)
 {
     using modbus::Register;
     const auto reg = static_cast<Register>(addr);
@@ -96,12 +96,13 @@ uint16_t ModbusSlave::readInputRegister(int addr, const GateStatus& st)
     // CLI status
     case Register::Cli: return static_cast<uint16_t>(cliStatus);
 
-    default: return 0;
+    default: return -1;   // not in the mapping: the handler answers exception 02
     }
 }
 
-// FC03 holding register: identification, the raw test register and the last CLI code.
-uint16_t ModbusSlave::readHoldingRegister(int addr)
+// FC03 holding register: reads back what FC06 writes (100 raw, 120-126, 200 last CLI code),
+// plus the identification 101-111.
+int ModbusSlave::readHoldingRegister(int addr)
 {
     using modbus::Register;
     const auto reg = static_cast<Register>(addr);
@@ -114,8 +115,18 @@ uint16_t ModbusSlave::readHoldingRegister(int addr)
     case Register::ModbusAddress: return slaveId;
     case Register::FwMajor: return parseFwMajor();
     case Register::FwMinor: return parseFwMinor();
+
+    // Public settings, same values and units as FC04
+    case Register::AutoCloseDelay: return static_cast<uint16_t>(pub.getAutoCloseDelay());
+    case Register::PedestrianDistance: return static_cast<uint16_t>(pub.getPedestrianModeDistance() * 100 + 0.5f);   // m -> cm
+    case Register::PassageLightDelay: return static_cast<uint16_t>(pub.getPassageLightDelay());
+    case Register::BeaconPreWarningTime: return static_cast<uint16_t>(pub.getBeaconPreWarningTime());
+    case Register::AutoRedirectEnabled: return 0x0000;   // not implemented
+    case Register::StopCount: return static_cast<uint16_t>(adv.getStopCount());
+    case Register::GatePassageMeters: return 0x0000;     // not implemented
+
     case Register::Cli: return cliCmd;
-    default: return 0;
+    default: return -1;   // not in the mapping: the handler answers exception 02
     }
 }
 

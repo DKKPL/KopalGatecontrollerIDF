@@ -4,15 +4,15 @@
 #include <cstdint>
 
 // Modbus RTU slave: 9600 8N1 on UART2 (RS485), slave address from the public
-// settings (default 55). All addresses are wire addresses; the enums below list them.
+// settings (default 55).
+//
+// Official Modbus numbering for every function code: the enums below list the numbers
+// (1-based), and the request carries number - 1 (register 1 = wire address 0).
 //
 // FC05 writes 0xFF00 = momentary button press, 0x0000 does nothing; FC01 always reads 0.
-// FC02 reads input registers 1-22 as bits (wire 0-21).
-// TODO: FC02 is the only function code with 0-based wire addresses (wire 0 = input 1);
-//       FC01/03/04/05/06 use the address directly (FC04: wire 1 = register 1). Make them
-//       consistent after the port, together with the Modbus master and a firmware
-//       version bump (registers 102/103): changing it alone shifts every input by one.
-// FC03 reads 100 raw, 101-111 like FC04, and 200 as the last CLI code.
+// FC02 reads input registers 1-22 as bits.
+// FC03 reads back what FC06 writes (official holding registers): 100 raw, 120-126, and 200
+// as the last CLI code; 101-111 read like FC04.
 // CLI (output goes to the log): FC06 write the code to 200, FC04 poll 200 until it
 // reads 2 (done), FC06 write 0 to 200 to acknowledge.
 
@@ -26,7 +26,7 @@ constexpr int kDefaultSlaveId = 55;   // 0x37
 /**
  * @brief Firmware version "major.minor" for registers 102 and 103 (was FW_VERSION).
  */
-constexpr const char* kFwVersion = "0.8";
+constexpr const char* kFwVersion = "0.9";
 
 /**
  * @brief What FC04 register 200 reads: the state of the CLI command (was CLI_STATUS_*).
@@ -85,20 +85,20 @@ enum class Register : uint16_t {
     FwMinor = 103,               ///< firmware version minor
     ReservedFirst = 104,         ///< 104-111 reserved (formerly IMEI), read 0
     ReservedLast = 111,          ///< last reserved address
-    // Public settings, FC04 reads and FC06 writes the same units
+    // Public settings, FC03/FC04 read and FC06 writes the same units
     AutoCloseDelay = 120,        ///< s
     PedestrianDistance = 121,    ///< cm (stored as m)
     PassageLightDelay = 122,     ///< s
     BeaconPreWarningTime = 123,  ///< s
     AutoRedirectEnabled = 124,   ///< not implemented, reads 0, write echo only
-    StopCount = 125,             ///< cycles; a write is RAM only
+    StopCount = 125,             ///< cycles; read only (FC06 answers exception 02)
     GatePassageMeters = 126,     ///< not implemented, reads 0, write echo only
     // CLI
     Cli = 200,                   ///< FC04: status (CliStatus), FC03: last code, FC06: run a CliCode, 0 = acknowledge
 };
 
 /**
- * @brief Coils for FC05 (wire address N = coil N); 5-8 are reserved.
+ * @brief Coils for FC05 (wire address N = coil N + 1); 5-8 are reserved.
  */
 enum class Coil : uint16_t {
     PushOpen = 1,        ///< press Open

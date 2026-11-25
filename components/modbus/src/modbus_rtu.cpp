@@ -71,6 +71,13 @@ static bool crcValid(const uint8_t* data, int length)
     return received == computed;
 }
 
+// First register or coil number of a request. Official Modbus numbering: the request
+// carries number - 1, so wire address 0 is register 1.
+static int firstNumber(const uint8_t* req)
+{
+    return ((req[2] << 8) | req[3]) + 1;
+}
+
 // Called at start-up and after the public settings are saved; takes effect at once.
 void ModbusSlave::applyAddress()
 {
@@ -222,7 +229,7 @@ int ModbusSlave::receiveFrame(uint8_t* buf, int size)
 }
 
 // FC01 Read Coils. Coils 1-9 are momentary command triggers: always 0 between commands.
-// Wire address N is coil N; address 0 is rejected.
+// Wire address N is coil N + 1.
 void ModbusSlave::handleReadCoils(const uint8_t* req, int reqLen)
 {
     if (reqLen < 6) {
@@ -230,10 +237,10 @@ void ModbusSlave::handleReadCoils(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
-    // Valid range: wire addr 1-9
+    // Valid range: coils 1-9
     if (count < 1 || count > 9 || start < 1 || start + count > 10) {
         sendException(0x01, 0x02);
         return;
@@ -257,10 +264,10 @@ void ModbusSlave::handleReadDiscreteInputs(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
-    if (count < 1 || count > 22 || start + count > 22) {
+    if (count < 1 || count > 22 || start + count > 23) {
         sendException(0x02, 0x02);
         return;
     }
@@ -273,8 +280,7 @@ void ModbusSlave::handleReadDiscreteInputs(const uint8_t* req, int reqLen)
 
     const GateStatus st = gate.getStatus();
     for (int i = 0; i < count; i++) {
-        // Wire addr i maps to register (start + i + 1), 1-based
-        if (readInputRegister(start + i + 1, st) != 0) {
+        if (readInputRegister(start + i, st) != 0) {
             respBuf[3 + i / 8] |= static_cast<uint8_t>(1 << (i % 8));
         }
     }
@@ -292,7 +298,7 @@ void ModbusSlave::handleReadHoldingRegisters(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
     if (count < 1 || count > 125) {
@@ -305,7 +311,11 @@ void ModbusSlave::handleReadHoldingRegisters(const uint8_t* req, int reqLen)
     respBuf[2] = static_cast<uint8_t>(count * 2);
 
     for (int i = 0; i < count; i++) {
-        const uint16_t val = readHoldingRegister(start + i);
+        const int val = readHoldingRegister(start + i);
+        if (val < 0) {
+            sendException(0x03, 0x02);   // illegal data address
+            return;
+        }
         respBuf[3 + i * 2] = static_cast<uint8_t>(val >> 8);
         respBuf[3 + i * 2 + 1] = static_cast<uint8_t>(val & 0xFF);
     }
@@ -322,7 +332,7 @@ void ModbusSlave::handleReadInputRegisters(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
     if (count < 1 || count > 125) {
@@ -336,7 +346,11 @@ void ModbusSlave::handleReadInputRegisters(const uint8_t* req, int reqLen)
 
     const GateStatus st = gate.getStatus();
     for (int i = 0; i < count; i++) {
-        const uint16_t val = readInputRegister(start + i, st);
+        const int val = readInputRegister(start + i, st);
+        if (val < 0) {
+            sendException(0x04, 0x02);   // illegal data address
+            return;
+        }
         respBuf[3 + i * 2] = static_cast<uint8_t>(val >> 8);
         respBuf[3 + i * 2 + 1] = static_cast<uint8_t>(val & 0xFF);
     }
@@ -354,16 +368,16 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int wireAddr = (req[2] << 8) | req[3];
+    const int coil = firstNumber(req);
     const bool on = (req[4] == 0xFF && req[5] == 0x00);
 
-    if (wireAddr < static_cast<int>(modbus::Coil::PushOpen) || wireAddr > static_cast<int>(modbus::Coil::AutoClose)) {
+    if (coil < static_cast<int>(modbus::Coil::PushOpen) || coil > static_cast<int>(modbus::Coil::AutoClose)) {
         sendException(0x05, 0x02);
         return;
     }
 
     if (on) {
-        switch (static_cast<modbus::Coil>(wireAddr)) {
+        switch (static_cast<modbus::Coil>(coil)) {
         case modbus::Coil::PushOpen:
             gate.post(GateCommand::Open);
             ESP_LOGI(TAG, "Coil 1 -> Push Open");
@@ -385,7 +399,7 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
             ESP_LOGI(TAG, "Coil 9 -> Autoclose");
             break;
         default:
-            ESP_LOGD(TAG, "Coil %d reserved - ignored", wireAddr);
+            ESP_LOGD(TAG, "Coil %d reserved - ignored", coil);
             break;
         }
     }
@@ -395,8 +409,8 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
 }
 
 
-// FC06 Write Single Register: 100 test register, 120-126 public settings,
-// 200 CLI command (1-9) or 0 to acknowledge.
+// FC06 Write Single Register: 100 test register, 120-124 and 126 public settings,
+// 200 CLI command (1-9) or 0 to acknowledge. Any other register is not writable.
 void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
 {
     if (reqLen < 6) {
@@ -404,69 +418,44 @@ void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int addr = (req[2] << 8) | req[3];
+    const int addr = firstNumber(req);
     const uint16_t val = static_cast<uint16_t>((req[4] << 8) | req[5]);
-    const auto reg = static_cast<modbus::Register>(addr);
+    bool publicChanged = false;
 
-    if (reg == modbus::Register::TestRegister) {
+    // Public settings use the same units as the FC04 read.
+    switch (static_cast<modbus::Register>(addr)) {
+    case modbus::Register::TestRegister:
         testRegister = val;
         ESP_LOGD(TAG, "TestReg[100] <- 0x%04X  (FC04 reads 0x%04X)", val, static_cast<uint16_t>(~val));
-        send(req, reqLen);
-        return;
-    }
-
-    // Public settings, same units as the FC04 read:
-    //   120 AutoCloseDelay s, 121 PedestrianModeDistance cm (stored as m), 122 PassageLightDelay s,
-    //   123 BeaconPreWarningTime s, 124 reserved (echo only), 125 StopCount, 126 reserved (echo only)
-    if (reg >= modbus::Register::AutoCloseDelay && reg <= modbus::Register::GatePassageMeters) {
-        bool publicChanged = false;
-
-        switch (reg) {
-        case modbus::Register::AutoCloseDelay:
-            pub.setAutoCloseDelay(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "AutoCloseDelay <- %ds", val);
-            break;
-        case modbus::Register::PedestrianDistance:
-            // Stored as float metres; Modbus unit is centimetres
-            pub.setPedestrianModeDistance(val / 100.0f);
-            publicChanged = true;
-            ESP_LOGI(TAG, "PedestrianModeDistance <- %dcm (%.2fm)", val, val / 100.0);
-            break;
-        case modbus::Register::PassageLightDelay:
-            pub.setPassageLightDelay(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "PassageLightDelay <- %ds", val);
-            break;
-        case modbus::Register::BeaconPreWarningTime:
-            pub.setBeaconPreWarningTime(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "BeaconPreWaringTime <- %ds", val);
-            break;
-        case modbus::Register::AutoRedirectEnabled:
-            ESP_LOGD(TAG, "Addr 124 reserved - echo only");
-            break;
-        case modbus::Register::StopCount:
-            adv.setStopCount(val);   // no flash write - takes too long
-            ESP_LOGI(TAG, "StopCount <- %d (RAM only)", val);
-            break;
-        case modbus::Register::GatePassageMeters:
-            ESP_LOGD(TAG, "Addr 126 reserved - echo only");
-            break;
-        default:
-            break;
-        }
-
-        // Persist to flash if a setting was changed
-        if (publicChanged) {
-            store.savePublic(pub);
-        }
-
-        send(req, reqLen);
-        return;
-    }
-
-    if (reg == modbus::Register::Cli) {
+        break;
+    case modbus::Register::AutoCloseDelay:
+        pub.setAutoCloseDelay(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "AutoCloseDelay <- %ds", val);
+        break;
+    case modbus::Register::PedestrianDistance:
+        // Stored as float metres; Modbus unit is centimetres
+        pub.setPedestrianModeDistance(val / 100.0f);
+        publicChanged = true;
+        ESP_LOGI(TAG, "PedestrianModeDistance <- %dcm (%.2fm)", val, val / 100.0);
+        break;
+    case modbus::Register::PassageLightDelay:
+        pub.setPassageLightDelay(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "PassageLightDelay <- %ds", val);
+        break;
+    case modbus::Register::BeaconPreWarningTime:
+        pub.setBeaconPreWarningTime(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "BeaconPreWaringTime <- %ds", val);
+        break;
+    case modbus::Register::AutoRedirectEnabled:
+        ESP_LOGD(TAG, "Addr 124 reserved - echo only");
+        break;
+    case modbus::Register::GatePassageMeters:
+        ESP_LOGD(TAG, "Addr 126 reserved - echo only");
+        break;
+    case modbus::Register::Cli:
         if (val == static_cast<uint16_t>(modbus::CliCode::None)) {
             cliStatus = modbus::CliStatus::Idle;
             cliCmd = static_cast<uint8_t>(modbus::CliCode::None);
@@ -485,12 +474,18 @@ void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
             sendException(0x06, 0x03);
             return;
         }
-
-        send(req, reqLen);
+        break;
+    default:
+        sendException(0x06, 0x02);   // not writable (125 StopCount is read only)
         return;
     }
 
-    sendException(0x06, 0x02);
+    // Persist to flash if a setting was changed
+    if (publicChanged) {
+        store.savePublic(pub);
+    }
+
+    send(req, reqLen);
 }
 
 // One readable line for every CRC-correct request addressed to this slave, e.g.
@@ -504,7 +499,7 @@ void ModbusSlave::logFrame(const uint8_t* buf, int len)
     }
 
     const uint8_t fc = buf[1];
-    const int addr = (len >= 6) ? ((buf[2] << 8) | buf[3]) : -1;
+    const int addr = (len >= 6) ? firstNumber(buf) : -1;   // the number, not the wire address
     const int param = (len >= 6) ? ((buf[4] << 8) | buf[5]) : -1;
 
     switch (static_cast<modbus::FunctionCode>(fc)) {
