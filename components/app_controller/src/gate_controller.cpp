@@ -585,6 +585,15 @@ void GateController::stateOpeningNormalStop()
         secondsSince(lastStopMs) > pub.getAutoCloseDelay() &&
         !commands.openPressed && !commands.latchedOpen) {
         if (commands.pedestrianHold) {
+            const int pedDir = checkPedestrianDirection();
+            // Pedestrian held and above pedestrian position: auto-close only down to pedestrian opening
+            if (pedDir == 1) {
+                commands.latchedOsc = false;
+                atPedestrianPosition = false;
+                pedestrianMode = true;
+                setMainLoopStep(MainLoopStep::Closing, "Auto-close to pedestrian position (pedestrian held)");
+            }
+            // Already at pedestrian position (or below): stay there
             return;
         }
         commands.latchedOsc = false;

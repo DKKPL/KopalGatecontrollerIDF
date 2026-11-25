@@ -13,7 +13,7 @@ static const char* TAG = "config";
 
 // Bump this string with every deployment where you want a forced re-teach.
 // Any change to this value clears the teach, advanced and public settings on the next boot.
-static constexpr const char* kFirmwareBuildStamp = "2026-11-14-0005";
+static constexpr const char* kFirmwareBuildStamp = "2026-11-25-0002";
 
 // NVS namespace and keys (max 15 characters each)
 static constexpr const char* kNamespace = "config";
