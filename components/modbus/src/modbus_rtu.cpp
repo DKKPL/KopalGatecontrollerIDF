@@ -71,6 +71,13 @@ static bool crcValid(const uint8_t* data, int length)
     return received == computed;
 }
 
+// First register or coil number of a request. Official Modbus numbering: the request
+// carries number - 1, so wire address 0 is register 1.
+static int firstNumber(const uint8_t* req)
+{
+    return ((req[2] << 8) | req[3]) + 1;
+}
+
 // Called at start-up and after the public settings are saved; takes effect at once.
 void ModbusSlave::applyAddress()
 {
@@ -222,7 +229,7 @@ int ModbusSlave::receiveFrame(uint8_t* buf, int size)
 }
 
 // FC01 Read Coils. Coils 1-9 are momentary command triggers: always 0 between commands.
-// Wire address N is coil N; address 0 is rejected.
+// Wire address N is coil N + 1.
 void ModbusSlave::handleReadCoils(const uint8_t* req, int reqLen)
 {
     if (reqLen < 6) {
@@ -230,10 +237,10 @@ void ModbusSlave::handleReadCoils(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
-    // Valid range: wire addr 1-9
+    // Valid range: coils 1-9
     if (count < 1 || count > 9 || start < 1 || start + count > 10) {
         sendException(0x01, 0x02);
         return;
@@ -257,10 +264,10 @@ void ModbusSlave::handleReadDiscreteInputs(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
-    if (count < 1 || count > 22 || start + count > 22) {
+    if (count < 1 || count > 22 || start + count > 23) {
         sendException(0x02, 0x02);
         return;
     }
@@ -273,8 +280,7 @@ void ModbusSlave::handleReadDiscreteInputs(const uint8_t* req, int reqLen)
 
     const GateStatus st = gate.getStatus();
     for (int i = 0; i < count; i++) {
-        // Wire addr i maps to register (start + i + 1), 1-based
-        if (readInputRegister(start + i + 1, st) != 0) {
+        if (readInputRegister(start + i, st) != 0) {
             respBuf[3 + i / 8] |= static_cast<uint8_t>(1 << (i % 8));
         }
     }
@@ -292,7 +298,7 @@ void ModbusSlave::handleReadHoldingRegisters(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
     if (count < 1 || count > 125) {
@@ -305,7 +311,11 @@ void ModbusSlave::handleReadHoldingRegisters(const uint8_t* req, int reqLen)
     respBuf[2] = static_cast<uint8_t>(count * 2);
 
     for (int i = 0; i < count; i++) {
-        const uint16_t val = readHoldingRegister(start + i);
+        const int val = readHoldingRegister(start + i);
+        if (val < 0) {
+            sendException(0x03, 0x02);   // illegal data address
+            return;
+        }
         respBuf[3 + i * 2] = static_cast<uint8_t>(val >> 8);
         respBuf[3 + i * 2 + 1] = static_cast<uint8_t>(val & 0xFF);
     }
@@ -322,7 +332,7 @@ void ModbusSlave::handleReadInputRegisters(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int start = (req[2] << 8) | req[3];
+    const int start = firstNumber(req);
     const int count = (req[4] << 8) | req[5];
 
     if (count < 1 || count > 125) {
@@ -336,7 +346,11 @@ void ModbusSlave::handleReadInputRegisters(const uint8_t* req, int reqLen)
 
     const GateStatus st = gate.getStatus();
     for (int i = 0; i < count; i++) {
-        const uint16_t val = readInputRegister(start + i, st);
+        const int val = readInputRegister(start + i, st);
+        if (val < 0) {
+            sendException(0x04, 0x02);   // illegal data address
+            return;
+        }
         respBuf[3 + i * 2] = static_cast<uint8_t>(val >> 8);
         respBuf[3 + i * 2 + 1] = static_cast<uint8_t>(val & 0xFF);
     }
@@ -354,16 +368,16 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int wireAddr = (req[2] << 8) | req[3];
+    const int coil = firstNumber(req);
     const bool on = (req[4] == 0xFF && req[5] == 0x00);
 
-    if (wireAddr < static_cast<int>(modbus::Coil::PushOpen) || wireAddr > static_cast<int>(modbus::Coil::AutoClose)) {
+    if (coil < static_cast<int>(modbus::Coil::PushOpen) || coil > static_cast<int>(modbus::Coil::AutoClose)) {
         sendException(0x05, 0x02);
         return;
     }
 
     if (on) {
-        switch (static_cast<modbus::Coil>(wireAddr)) {
+        switch (static_cast<modbus::Coil>(coil)) {
         case modbus::Coil::PushOpen:
             gate.post(GateCommand::Open);
             ESP_LOGI(TAG, "Coil 1 -> Push Open");
@@ -385,7 +399,7 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
             ESP_LOGI(TAG, "Coil 9 -> Autoclose");
             break;
         default:
-            ESP_LOGD(TAG, "Coil %d reserved - ignored", wireAddr);
+            ESP_LOGD(TAG, "Coil %d reserved - ignored", coil);
             break;
         }
     }
@@ -404,7 +418,7 @@ void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
         return;
     }
 
-    const int addr = (req[2] << 8) | req[3];
+    const int addr = firstNumber(req);
     const uint16_t val = static_cast<uint16_t>((req[4] << 8) | req[5]);
     const auto reg = static_cast<modbus::Register>(addr);
 
@@ -504,7 +518,7 @@ void ModbusSlave::logFrame(const uint8_t* buf, int len)
     }
 
     const uint8_t fc = buf[1];
-    const int addr = (len >= 6) ? ((buf[2] << 8) | buf[3]) : -1;
+    const int addr = (len >= 6) ? firstNumber(buf) : -1;   // the number, not the wire address
     const int param = (len >= 6) ? ((buf[4] << 8) | buf[5]) : -1;
 
     switch (static_cast<modbus::FunctionCode>(fc)) {

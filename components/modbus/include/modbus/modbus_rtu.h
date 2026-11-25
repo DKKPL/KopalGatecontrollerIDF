@@ -91,12 +91,14 @@ private:
     /**
      * @brief Value of one FC04 input register (was ReadInputRegister).
      * @param st gate snapshot, taken once per request
+     * @return 0-65535, or -1 when the register is not in the mapping
      */
-    uint16_t readInputRegister(int addr, const GateStatus& st);
+    int readInputRegister(int addr, const GateStatus& st);
     /**
      * @brief Value of one FC03 holding register (was ReadHoldingRegister).
+     * @return 0-65535, or -1 when the register is not in the mapping
      */
-    uint16_t readHoldingRegister(int addr);
+    int readHoldingRegister(int addr);
 
     /**
      * @brief Run the CLI command queued through register 200, if any (was ProcessModbusCli).
