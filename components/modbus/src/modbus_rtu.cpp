@@ -409,8 +409,8 @@ void ModbusSlave::handleWriteSingleCoil(const uint8_t* req, int reqLen)
 }
 
 
-// FC06 Write Single Register: 100 test register, 120-126 public settings,
-// 200 CLI command (1-9) or 0 to acknowledge.
+// FC06 Write Single Register: 100 test register, 120-124 and 126 public settings,
+// 200 CLI command (1-9) or 0 to acknowledge. Any other register is not writable.
 void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
 {
     if (reqLen < 6) {
@@ -420,67 +420,42 @@ void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
 
     const int addr = firstNumber(req);
     const uint16_t val = static_cast<uint16_t>((req[4] << 8) | req[5]);
-    const auto reg = static_cast<modbus::Register>(addr);
+    bool publicChanged = false;
 
-    if (reg == modbus::Register::TestRegister) {
+    // Public settings use the same units as the FC04 read.
+    switch (static_cast<modbus::Register>(addr)) {
+    case modbus::Register::TestRegister:
         testRegister = val;
         ESP_LOGD(TAG, "TestReg[100] <- 0x%04X  (FC04 reads 0x%04X)", val, static_cast<uint16_t>(~val));
-        send(req, reqLen);
-        return;
-    }
-
-    // Public settings, same units as the FC04 read:
-    //   120 AutoCloseDelay s, 121 PedestrianModeDistance cm (stored as m), 122 PassageLightDelay s,
-    //   123 BeaconPreWarningTime s, 124 reserved (echo only), 125 StopCount, 126 reserved (echo only)
-    if (reg >= modbus::Register::AutoCloseDelay && reg <= modbus::Register::GatePassageMeters) {
-        bool publicChanged = false;
-
-        switch (reg) {
-        case modbus::Register::AutoCloseDelay:
-            pub.setAutoCloseDelay(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "AutoCloseDelay <- %ds", val);
-            break;
-        case modbus::Register::PedestrianDistance:
-            // Stored as float metres; Modbus unit is centimetres
-            pub.setPedestrianModeDistance(val / 100.0f);
-            publicChanged = true;
-            ESP_LOGI(TAG, "PedestrianModeDistance <- %dcm (%.2fm)", val, val / 100.0);
-            break;
-        case modbus::Register::PassageLightDelay:
-            pub.setPassageLightDelay(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "PassageLightDelay <- %ds", val);
-            break;
-        case modbus::Register::BeaconPreWarningTime:
-            pub.setBeaconPreWarningTime(val);
-            publicChanged = true;
-            ESP_LOGI(TAG, "BeaconPreWaringTime <- %ds", val);
-            break;
-        case modbus::Register::AutoRedirectEnabled:
-            ESP_LOGD(TAG, "Addr 124 reserved - echo only");
-            break;
-        case modbus::Register::StopCount:
-            adv.setStopCount(val);   // no flash write - takes too long
-            ESP_LOGI(TAG, "StopCount <- %d (RAM only)", val);
-            break;
-        case modbus::Register::GatePassageMeters:
-            ESP_LOGD(TAG, "Addr 126 reserved - echo only");
-            break;
-        default:
-            break;
-        }
-
-        // Persist to flash if a setting was changed
-        if (publicChanged) {
-            store.savePublic(pub);
-        }
-
-        send(req, reqLen);
-        return;
-    }
-
-    if (reg == modbus::Register::Cli) {
+        break;
+    case modbus::Register::AutoCloseDelay:
+        pub.setAutoCloseDelay(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "AutoCloseDelay <- %ds", val);
+        break;
+    case modbus::Register::PedestrianDistance:
+        // Stored as float metres; Modbus unit is centimetres
+        pub.setPedestrianModeDistance(val / 100.0f);
+        publicChanged = true;
+        ESP_LOGI(TAG, "PedestrianModeDistance <- %dcm (%.2fm)", val, val / 100.0);
+        break;
+    case modbus::Register::PassageLightDelay:
+        pub.setPassageLightDelay(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "PassageLightDelay <- %ds", val);
+        break;
+    case modbus::Register::BeaconPreWarningTime:
+        pub.setBeaconPreWarningTime(val);
+        publicChanged = true;
+        ESP_LOGI(TAG, "BeaconPreWaringTime <- %ds", val);
+        break;
+    case modbus::Register::AutoRedirectEnabled:
+        ESP_LOGD(TAG, "Addr 124 reserved - echo only");
+        break;
+    case modbus::Register::GatePassageMeters:
+        ESP_LOGD(TAG, "Addr 126 reserved - echo only");
+        break;
+    case modbus::Register::Cli:
         if (val == static_cast<uint16_t>(modbus::CliCode::None)) {
             cliStatus = modbus::CliStatus::Idle;
             cliCmd = static_cast<uint8_t>(modbus::CliCode::None);
@@ -499,12 +474,18 @@ void ModbusSlave::handleWriteSingleRegister(const uint8_t* req, int reqLen)
             sendException(0x06, 0x03);
             return;
         }
-
-        send(req, reqLen);
+        break;
+    default:
+        sendException(0x06, 0x02);   // not writable (125 StopCount is read only)
         return;
     }
 
-    sendException(0x06, 0x02);
+    // Persist to flash if a setting was changed
+    if (publicChanged) {
+        store.savePublic(pub);
+    }
+
+    send(req, reqLen);
 }
 
 // One readable line for every CRC-correct request addressed to this slave, e.g.

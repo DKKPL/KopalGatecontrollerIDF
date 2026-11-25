@@ -90,7 +90,7 @@ enum class Register : uint16_t {
     PassageLightDelay = 122,     ///< s
     BeaconPreWarningTime = 123,  ///< s
     AutoRedirectEnabled = 124,   ///< not implemented, reads 0, write echo only
-    StopCount = 125,             ///< cycles; a write is RAM only
+    StopCount = 125,             ///< cycles; read only (FC06 answers exception 02)
     GatePassageMeters = 126,     ///< not implemented, reads 0, write echo only
     // CLI
     Cli = 200,                   ///< FC04: status (CliStatus), FC03: last code, FC06: run a CliCode, 0 = acknowledge
