@@ -7,7 +7,7 @@
  * @brief The public (user) settings as plain values; saved as one NVS blob (was the PublicSettings properties).
  */
 struct PublicValues {
-    int autoCloseDelay = 20;              ///< s before the gate closes by itself (was AutoCloseDelay)
+    int autoCloseDelay = 20;              ///< s after activation, stop, or blocking input release before auto-close
     float pedestrianModeDistance = 1.2f;  ///< pedestrian opening in meters (was PedestrianModeDistance)
     int passageLightDelay = 60;           ///< s the passage light stays on (was PassageLightDelay)
     int beaconPreWarningTime = 0;         ///< s the beacon flashes before moving (was BeaconPreWaringTime)
@@ -31,7 +31,7 @@ public:
     void setValues(const PublicValues& values);
 
     /**
-     * @brief Seconds before the gate closes by itself (was AutoCloseDelay).
+     * @brief Seconds before auto-close, counted after activation, motor stop, or release of a blocking input.
      */
     int getAutoCloseDelay() const;
     /**

@@ -208,6 +208,8 @@ void GateController::normalOperation()
             ESP_LOGD(TAG, "AutoClose timer reset due to SF_C trigger.");
         }
 
+        updateAutoCloseTimer();
+
         switch (step) {
         case MainLoopStep::Closing:                     stateClosing(); break;
         case MainLoopStep::ClosingNormalStop:           stateClosingNormalStop(); break;
@@ -398,9 +400,12 @@ void GateController::stateClosingNormalStop()
         simOpenClosedSinceMs = -1;
     }
 
+    updateAutoCloseTimer();
+
     // Auto-close
-    if (commands.autoClose && (checkPedestrianDirection() == 0 || lsoActivated) &&
-        secondsSince(lastStopMs) > pub.getAutoCloseDelay()) {
+    if (commands.autoClose && safety.closeOk() && (checkPedestrianDirection() == 0 || lsoActivated) &&
+        !commands.openPressed && !commands.latchedOpen &&
+        autoCloseTimer.elapsed(nowMs(), pub.getAutoCloseDelay())) {
         if (commands.pedestrianHold) {
             return;   // no auto-close while pedestrian is held
         }
@@ -580,9 +585,11 @@ void GateController::stateOpeningNormalStop()
 
     isLsoActivated();
 
+    updateAutoCloseTimer();
+
     // Auto-close
-    if (commands.autoClose && (checkPedestrianDirection() == 0 || lsoActivated) &&
-        secondsSince(lastStopMs) > pub.getAutoCloseDelay() &&
+    if (commands.autoClose && safety.closeOk() && (checkPedestrianDirection() == 0 || lsoActivated) &&
+        autoCloseTimer.elapsed(nowMs(), pub.getAutoCloseDelay()) &&
         !commands.openPressed && !commands.latchedOpen) {
         if (commands.pedestrianHold) {
             const int pedDir = checkPedestrianDirection();
@@ -893,6 +900,7 @@ void GateController::stopMotor(bool forceStop)
     motor.setSpeed(0.0f);
     motor.setTorque(adv.getTqSfty());
     lastStopMs = nowMs();
+    autoCloseTimer.reset(lastStopMs);
     moving = false;
 
     if (forceStop) {
@@ -1173,7 +1181,17 @@ void GateController::pollAndLatchInputCommands()
     }
 
     drainCommands();   // was PollRemoteCommands()
+    updateAutoCloseTimer();
     publishStatus();
+}
+
+void GateController::updateAutoCloseTimer()
+{
+    const bool pedestrianBlocked = commands.pedestrianHold &&
+        (step == MainLoopStep::ClosingNormalStop || checkPedestrianDirection() == 0);
+    const bool blocked = !safety.closeOk() || commands.openPressed ||
+        commands.latchedOpen || pedestrianBlocked;
+    autoCloseTimer.update(commands.autoClose, blocked, nowMs());
 }
 
 // Lock after the idle timeout, or straight away when fully closed.

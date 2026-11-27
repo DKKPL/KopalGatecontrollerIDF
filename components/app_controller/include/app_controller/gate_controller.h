@@ -9,6 +9,7 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
+#include "app_controller/auto_close_timer.h"
 #include "app_controller/gate_commands.h"
 #include "app_controller/gate_outputs.h"
 #include "app_controller/gate_types.h"
@@ -210,6 +211,7 @@ private:
      * @brief Handle all commands that other tasks sent with post() (was PollRemoteCommands).
      */
     void drainCommands();
+    void updateAutoCloseTimer();
 
     /**
      * @brief Lock the gate once it has been still long enough, or right away when fully closed.
@@ -278,6 +280,7 @@ private:
     // Timing (ms since boot)
     int64_t lastStartMs = 0;
     int64_t lastStopMs = 0;
+    AutoCloseTimer autoCloseTimer;
     int64_t simOpenClosedSinceMs = -1;        ///< -1 = not set
 
     // Task plumbing

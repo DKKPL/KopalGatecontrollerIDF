@@ -38,15 +38,13 @@ bool GateCommands::pollOpen()
 void GateCommands::pollPedestrian()
 {
     const bool high = io.isHigh(Input::Pedestrian);
+    pedestrianHold = !high;
     if (!openPressed) {
         if (lastPedestrianHigh && !high) {          // falling edge: pressed
             pedestrianPressed = true;
-            pedestrianHold = true;
-        } else if (!lastPedestrianHigh && high) {   // rising edge: released
-            pedestrianHold = false;
         }
     }
-    // If open is pressed, pedestrian is ignored (only the last level is tracked).
+    // A new pedestrian command is ignored while Open is pressed, but the hold level is tracked.
     lastPedestrianHigh = high;
 }
 
